@@ -4,7 +4,7 @@ export default $config({
   app(input) {
     return {
       name: "inventory",
-      removal: input?.stage === "production" ? "retain" : "remove",
+      removal: "remove",
       protect: ["production"].includes(input?.stage),
       providers: {
         aws: {
