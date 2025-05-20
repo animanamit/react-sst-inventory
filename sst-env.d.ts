@@ -25,7 +25,7 @@ declare module "sst" {
       "name": string
       "type": "sst.aws.Dynamo"
     }
-    "MyWeb": {
+    "InventoryWeb": {
       "type": "sst.aws.React"
       "url": string
     }

@@ -158,6 +158,22 @@ export default $config({
       link: [alertsTable],
     });
 
-    new sst.aws.React("MyWeb");
+    // Set up React frontend
+    const site = new sst.aws.React("InventoryWeb", {
+      path: ".",
+      link: [productsTable, inventoryTable, alertsTable, bucket, api],
+      environment: {
+        // Environment variables for the frontend
+        VITE_API_URL: api.url,
+        VITE_REGION: "ap-southeast-1", // Update with your region
+      },
+    });
+
+    // Export values
+    return {
+      // Return output values from your stack
+      API_URL: api.url,
+      SITE_URL: site.url,
+    };
   },
 });
