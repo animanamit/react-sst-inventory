@@ -5,9 +5,37 @@
 
 declare module "sst" {
   export interface Resource {
+    "AlertsQueue": {
+      "type": "sst.aws.Queue"
+      "url": string
+    }
+    "AlertsTable": {
+      "name": string
+      "type": "sst.aws.Dynamo"
+    }
+    "InventoryApi": {
+      "type": "sst.aws.ApiGatewayV2"
+      "url": string
+    }
+    "InventoryHistoryTable": {
+      "name": string
+      "type": "sst.aws.Dynamo"
+    }
+    "InventoryTable": {
+      "name": string
+      "type": "sst.aws.Dynamo"
+    }
     "MyWeb": {
       "type": "sst.aws.React"
       "url": string
+    }
+    "ProductImagesBucket": {
+      "name": string
+      "type": "sst.aws.Bucket"
+    }
+    "ProductsTable": {
+      "name": string
+      "type": "sst.aws.Dynamo"
     }
   }
 }
