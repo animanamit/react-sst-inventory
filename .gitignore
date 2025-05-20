@@ -4,3 +4,8 @@
 # React Router
 /.react-router/
 /build/
+
+# sst
+.sst
+
+.env

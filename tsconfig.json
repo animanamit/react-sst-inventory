@@ -23,5 +23,5 @@
     "resolveJsonModule": true,
     "skipLibCheck": true,
     "strict": true
-  }
+  },"exclude":["sst.config.ts"]
 }
