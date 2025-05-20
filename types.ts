@@ -9,8 +9,11 @@ export interface InventoryItem {
 
 export interface Alert {
   id: string;
-  item: InventoryItem;
-  createdAt: string;
+  itemId: string;
+  itemName: string;
+  currentQuantity: number;
+  threshold: number;
+  timestamp: string;
+  acknowledged: boolean;
   acknowledgedAt?: string;
-  message: string;
 }

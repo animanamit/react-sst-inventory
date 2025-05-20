@@ -1,4 +1,57 @@
-import type { InventoryItem } from "../types";
+import type { Alert, InventoryItem } from "../types";
+
+export const sampleActiveAlerts: Alert[] = [
+  {
+    id: "alert-1",
+    itemId: "2",
+    itemName: "Leather Wallet",
+    currentQuantity: 12,
+    threshold: 15,
+    timestamp: new Date(Date.now() - 3600000).toISOString(), // 1 hour ago
+    acknowledged: false,
+  },
+  {
+    id: "alert-2",
+    itemId: "3",
+    itemName: "Wireless Headphones",
+    currentQuantity: 8,
+    threshold: 10,
+    timestamp: new Date(Date.now() - 7200000).toISOString(), // 2 hours ago
+    acknowledged: false,
+  },
+  {
+    id: "alert-3",
+    itemId: "6",
+    itemName: "Bamboo Cutting Board",
+    currentQuantity: 7,
+    threshold: 8,
+    timestamp: new Date(Date.now() - 10800000).toISOString(), // 3 hours ago
+    acknowledged: false,
+  },
+];
+
+export const sampleAlertHistory: Alert[] = [
+  {
+    id: "alert-history-1",
+    itemId: "5",
+    itemName: "Stainless Steel Water Bottle",
+    currentQuantity: 18,
+    threshold: 20,
+    timestamp: new Date(Date.now() - 86400000).toISOString(), // 1 day ago
+    acknowledged: true,
+    acknowledgedAt: new Date(Date.now() - 82800000).toISOString(), // 23 hours ago
+  },
+  {
+    id: "alert-history-2",
+    itemId: "8",
+    itemName: "Leather Journal",
+    currentQuantity: 9,
+    threshold: 10,
+    timestamp: new Date(Date.now() - 172800000).toISOString(), // 2 days ago
+    acknowledged: true,
+    acknowledgedAt: new Date(Date.now() - 169200000).toISOString(), // 47 hours ago
+  },
+];
 
 export const mockInventoryData: InventoryItem[] = [
   {
