@@ -85,14 +85,24 @@ export default $config({
     });
 
     // Set up the SQS alert queue
-    const alertQueue = new sst.aws.Queue("AlertsQueue");
+    // const alertQueue = new sst.aws.Queue("AlertsQueue", {
+    //   consumer: {
+    //     function: {
+    //       handler: "packages/functions/src/alerts/processAlerts.handler",
+    //       timeout: "60 seconds",
+    //       environment: {
+    //         ALERTS_TABLE: alertsTable.name,
+    //       },
+    //       bind: [alertsTable],
+    //     },
+    //   },
+    // });
 
     const api = new sst.aws.ApiGatewayV2("InventoryApi", {
       cors: {
         allowHeaders: ["*"],
         allowMethods: ["*"],
-        allowOrigins: ["http://localhost:3000"],
-        allowCredentials: true,
+        allowOrigins: ["*"],
       },
     });
 
@@ -100,69 +110,115 @@ export default $config({
     api.route("GET /products", {
       handler: "packages/functions/src/products/getAll.handler",
       link: [productsTable],
+      environment: {
+        PRODUCTS_TABLE: productsTable.name,
+      },
     });
 
     api.route("GET /products/{id}", {
       handler: "packages/functions/src/products/getById.handler",
       link: [productsTable],
+      environment: {
+        PRODUCTS_TABLE: productsTable.name,
+      },
     });
 
     api.route("POST /products", {
       handler: "packages/functions/src/products/create.handler",
       link: [productsTable, bucket],
+      environment: {
+        PRODUCTS_TABLE: productsTable.name,
+        BUCKET_NAME: bucket.name,
+      },
     });
 
     api.route("PUT /products/{id}", {
       handler: "packages/functions/src/products/update.handler",
       link: [productsTable, bucket],
+      environment: {
+        PRODUCTS_TABLE: productsTable.name,
+        BUCKET_NAME: bucket.name,
+      },
     });
 
     api.route("DELETE /products/{id}", {
       handler: "packages/functions/src/products/delete.handler",
       link: [productsTable, bucket],
+      environment: {
+        PRODUCTS_TABLE: productsTable.name,
+        BUCKET_NAME: bucket.name,
+      },
     });
 
     /* ───────────── Inventory ───────────── */
     api.route("GET /inventory", {
       handler: "packages/functions/src/inventory/getAll.handler",
       link: [inventoryTable, productsTable],
+      environment: {
+        INVENTORY_TABLE: inventoryTable.name,
+        PRODUCTS_TABLE: productsTable.name,
+      },
     });
 
     api.route("GET /inventory/{productId}/{locationId}", {
       handler: "packages/functions/src/inventory/getItem.handler",
       link: [inventoryTable],
+      environment: {
+        INVENTORY_TABLE: inventoryTable.name,
+      },
     });
 
     api.route("POST /inventory", {
       handler: "packages/functions/src/inventory/updateStock.handler",
-      link: [inventoryTable, inventoryHistoryTable, alertsTable, alertQueue],
+      // link: [inventoryTable, inventoryHistoryTable, alertsTable, alertQueue],
+      link: [inventoryTable, inventoryHistoryTable, alertsTable],
+      environment: {
+        INVENTORY_TABLE: inventoryTable.name,
+        INVENTORY_HISTORY_TABLE: inventoryHistoryTable.name,
+        ALERTS_TABLE: alertsTable.name,
+      },
     });
 
     api.route("GET /inventory/history/{productId}", {
       handler: "packages/functions/src/inventory/getHistory.handler",
       link: [inventoryHistoryTable],
+      environment: {
+        INVENTORY_HISTORY_TABLE: inventoryHistoryTable.name,
+      },
     });
 
     /* ───────────── Alerts ───────────── */
     api.route("GET /alerts", {
       handler: "packages/functions/src/alerts/getAll.handler",
       link: [alertsTable],
+      environment: {
+        ALERTS_TABLE: alertsTable.name,
+      },
     });
 
     api.route("GET /alerts/{id}", {
       handler: "packages/functions/src/alerts/getById.handler",
       link: [alertsTable],
+      environment: {
+        ALERTS_TABLE: alertsTable.name,
+      },
     });
 
     api.route("PUT /alerts/{id}/acknowledge", {
       handler: "packages/functions/src/alerts/acknowledge.handler",
       link: [alertsTable],
+      environment: {
+        ALERTS_TABLE: alertsTable.name,
+      },
     });
 
     /* ───────────── File Uploads ───────────── */
     api.route("GET /uploads/presigned-url", {
       handler: "packages/functions/src/uploads/getSignedUrl.handler",
       link: [bucket],
+      environment: {
+        BUCKET_NAME: bucket.name,
+      },
     });
 
     // Set up React frontend
@@ -172,7 +228,7 @@ export default $config({
       environment: {
         // Environment variables for the frontend
         VITE_API_URL: api.url,
-        VITE_REGION: "ap-southeast-1", // Update with your region
+        VITE_REGION: "ap-southeast-1", // Use input or default
       },
     });
 
