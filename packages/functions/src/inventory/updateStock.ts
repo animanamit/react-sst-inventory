@@ -16,22 +16,6 @@ import { ulid } from "ulid";
 
 export const handler: APIGatewayProxyHandler = async (event) => {
   try {
-    // Debug environment information
-    console.log("Environment variables:", {
-      INVENTORY_TABLE: process.env.INVENTORY_TABLE,
-      NODE_ENV: process.env.NODE_ENV,
-      ALERTS_TABLE: process.env.ALERTS_TABLE,
-      INVENTORY_HISTORY_TABLE: process.env.INVENTORY_HISTORY_TABLE,
-    });
-
-    // Debug event information
-    console.log("Request event:", {
-      path: event.path,
-      method: event.httpMethod,
-      headers: event.headers,
-      queryStringParameters: event.queryStringParameters,
-      body: event.body ? JSON.parse(event.body) : null,
-    });
 
     // Check if request has a body
     if (!event.body) {
@@ -41,7 +25,6 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     // Parse request body
     const body = JSON.parse(event.body);
 
-    console.log("Parsed request body:", body);
 
     // Validate DynamoDB table environment variables
     if (!process.env.INVENTORY_TABLE) {
@@ -78,14 +61,11 @@ export const handler: APIGatewayProxyHandler = async (event) => {
  */
 async function handleInventoryUpdate(data: any) {
   try {
-    console.log("Starting inventory item update with data:", data);
-    console.log("Using table:", process.env.INVENTORY_TABLE);
 
     // Validate input with zod
     let validatedData;
     try {
       validatedData = InventorySchema.parse(data);
-      console.log("Data validation successful:", validatedData);
     } catch (validationError) {
       console.error("Validation error:", validationError);
       return createErrorResponse(
@@ -98,7 +78,6 @@ async function handleInventoryUpdate(data: any) {
     if (!validatedData.productId) {
       // Generate a new ID for new items
       validatedData.productId = ulid();
-      console.log("Generated new product ID:", validatedData.productId);
     } else {
       // For updates, get the existing record first
       const existingItemParams = {
@@ -109,22 +88,13 @@ async function handleInventoryUpdate(data: any) {
         },
       };
 
-      console.log(
-        "Checking for existing item with params:",
-        existingItemParams
-      );
 
       try {
         const result = await dynamoDb.send(new GetCommand(existingItemParams));
         const existingItem = result.Item as Inventory | undefined;
 
-        console.log("Existing item query result:", existingItem);
-
         if (!existingItem) {
           // If updating non-existent item, ensure we have all required fields
-          console.log(
-            "Item not found, ensuring all required fields are present"
-          );
           InventorySchema.parse(validatedData);
         }
       } catch (dbError) {
@@ -145,11 +115,8 @@ async function handleInventoryUpdate(data: any) {
       },
     };
 
-    console.log("Attempting to write item with params:", params);
-
     try {
       await dynamoDb.send(new PutCommand(params));
-      console.log("Item successfully written to database");
     } catch (putError) {
       console.error("Error writing to database:", putError);
       return createErrorResponse(
@@ -348,9 +315,6 @@ async function checkAndCreateAlert(item: Inventory & { minThreshold?: number }) 
     //   // Send to SQS...
     // }
 
-    console.log(
-      `Created ${alertType} stock alert for product ${item.productId}`
-    );
   } catch (error) {
     // Log but don't fail the operation if alert creation fails
     console.error("Error creating alert:", error);

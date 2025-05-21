@@ -11,19 +11,6 @@ import { ulid } from "ulid";
 
 export const handler: APIGatewayProxyHandler = async (event) => {
   try {
-    // Debug environment information
-    console.log("Environment variables:", {
-      PRODUCTS_TABLE: process.env.PRODUCTS_TABLE,
-      NODE_ENV: process.env.NODE_ENV
-    });
-    
-    // Debug event information
-    console.log("Request event:", {
-      path: event.path,
-      method: event.httpMethod,
-      headers: event.headers,
-      body: event.body ? JSON.parse(event.body) : null
-    });
     
     // Check if request has a body
     if (!event.body) {
@@ -33,7 +20,6 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     // Parse request body
     const body = JSON.parse(event.body);
     
-    console.log("Parsed request body:", body);
 
     // Validate DynamoDB table environment variable
     if (!process.env.PRODUCTS_TABLE) {
@@ -44,7 +30,6 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     let validatedData;
     try {
       validatedData = ProductSchema.parse(body);
-      console.log("Data validation successful:", validatedData);
     } catch (validationError) {
       console.error("Validation error:", validationError);
       return createErrorResponse(400, `Validation error: ${(validationError as Error).message}`);
@@ -54,7 +39,6 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     if (!validatedData.productId) {
       // Generate a new ID for new products
       validatedData.productId = ulid();
-      console.log("Generated new product ID:", validatedData.productId);
     } else {
       // For updates, get the existing record first
       const existingItemParams = {
@@ -64,17 +48,13 @@ export const handler: APIGatewayProxyHandler = async (event) => {
         },
       };
       
-      console.log("Checking for existing product with params:", existingItemParams);
 
       try {
         const result = await dynamoDb.send(new GetCommand(existingItemParams));
         const existingProduct = result.Item as Product | undefined;
         
-        console.log("Existing product query result:", existingProduct);
-
         if (!existingProduct) {
           // If updating non-existent product, ensure we have all required fields
-          console.log("Product not found, ensuring all required fields are present");
           ProductSchema.parse(validatedData);
         }
       } catch (dbError) {
@@ -92,11 +72,8 @@ export const handler: APIGatewayProxyHandler = async (event) => {
       },
     };
     
-    console.log("Attempting to write product with params:", params);
-
     try {
       await dynamoDb.send(new PutCommand(params));
-      console.log("Product successfully written to database");
     } catch (putError) {
       console.error("Error writing to database:", putError);
       return createErrorResponse(500, `Database write error: ${(putError as Error).message}`);

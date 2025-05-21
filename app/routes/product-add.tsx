@@ -6,7 +6,13 @@ import type { Route } from ".react-router/types/app/routes/+types/product-add";
 import { api } from "~/lib/api";
 
 import { Button } from "~/components/ui/button";
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "~/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "~/components/ui/card";
 import {
   Form,
   FormControl,
@@ -28,15 +34,22 @@ const productSchema = z.object({
   description: z.string().min(10, "Description must be at least 10 characters"),
   category: z.string().optional(),
   sku: z.string().optional(),
-  initialStock: z.coerce.number().int().min(0, "Initial stock must be a positive number"),
+  initialStock: z.coerce
+    .number()
+    .int()
+    .min(0, "Initial stock must be a positive number"),
   minThreshold: z.coerce.number().int().min(1, "Threshold must be at least 1"),
-  image: z.custom<FileList>()
+  image: z
+    .custom<FileList>()
     .optional()
     .refine(
-      (files) => !files || files.length === 0 || Array.from(files).every(file => file instanceof File), 
+      (files) =>
+        !files ||
+        files.length === 0 ||
+        Array.from(files).every((file) => file instanceof File),
       "Please upload valid files"
     )
-    .transform(files => files && files.length > 0 ? files[0] : undefined),
+    .transform((files) => (files && files.length > 0 ? files[0] : undefined)),
 });
 
 type ProductFormValues = {
@@ -76,22 +89,22 @@ export const AddProductPage = () => {
       let imageUrl: string | undefined;
       if (data.image) {
         try {
-          console.log("Uploading image:", data.image.name);
-          
           // Get the image upload URL from our backend
           const { uploadUrl, fileUrl } = await api.getUploadUrl(
-            data.image.name, 
+            data.image.name,
             data.image.type
           );
-          
+
           // Upload the image directly to S3 using the pre-signed URL
           await api.uploadFile(uploadUrl, data.image);
-          
+
           // Use the file URL for the image URL
           imageUrl = fileUrl;
         } catch (uploadError) {
           console.error("Error uploading image:", uploadError);
-          toast.error("Failed to upload image. The product will be created without an image.");
+          toast.error(
+            "Failed to upload image. The product will be created without an image."
+          );
         }
       }
 
@@ -104,9 +117,9 @@ export const AddProductPage = () => {
         minThreshold: data.minThreshold,
         imageUrl,
       };
-      
+
       const result = await api.products.createOrUpdate(productData);
-      
+
       // If initial stock is greater than 0, also create an inventory record
       if (data.initialStock > 0) {
         await api.inventory.adjustStock({
@@ -115,7 +128,7 @@ export const AddProductPage = () => {
           reason: "Initial stock on product creation",
         });
       }
-      
+
       return result;
     },
     onSuccess: () => {
@@ -128,7 +141,7 @@ export const AddProductPage = () => {
     },
     onSettled: () => {
       setIsSubmitting(false);
-    }
+    },
   });
 
   // Handle form submission
@@ -155,9 +168,7 @@ export const AddProductPage = () => {
                     <FormControl>
                       <Input placeholder="Enter product name" {...field} />
                     </FormControl>
-                    <FormDescription>
-                      The name of your product
-                    </FormDescription>
+                    <FormDescription>The name of your product</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -192,7 +203,10 @@ export const AddProductPage = () => {
                     <FormItem>
                       <FormLabel>Category</FormLabel>
                       <FormControl>
-                        <Input placeholder="e.g. Electronics, Clothing" {...field} />
+                        <Input
+                          placeholder="e.g. Electronics, Clothing"
+                          {...field}
+                        />
                       </FormControl>
                       <FormDescription>
                         Product category (optional)

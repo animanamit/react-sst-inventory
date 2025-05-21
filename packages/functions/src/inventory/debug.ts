@@ -12,22 +12,19 @@ import {
  */
 export const handler: APIGatewayProxyHandler = async (event) => {
   try {
-    // Check environment variables
-    console.log("Environment variables:", {
-      INVENTORY_TABLE: process.env.INVENTORY_TABLE,
-      PRODUCTS_TABLE: process.env.PRODUCTS_TABLE,
-      ALERTS_TABLE: process.env.ALERTS_TABLE,
-      INVENTORY_HISTORY_TABLE: process.env.INVENTORY_HISTORY_TABLE,
-      NODE_ENV: process.env.NODE_ENV,
-    });
-
     // Ensure the tables exists
     if (!process.env.INVENTORY_TABLE) {
-      return createErrorResponse(500, "INVENTORY_TABLE environment variable is not set");
+      return createErrorResponse(
+        500,
+        "INVENTORY_TABLE environment variable is not set"
+      );
     }
 
     if (!process.env.PRODUCTS_TABLE) {
-      return createErrorResponse(500, "PRODUCTS_TABLE environment variable is not set");
+      return createErrorResponse(
+        500,
+        "PRODUCTS_TABLE environment variable is not set"
+      );
     }
 
     // Get all inventory items
@@ -36,7 +33,6 @@ export const handler: APIGatewayProxyHandler = async (event) => {
       Limit: 100,
     };
 
-    console.log("Scanning inventory table:", inventoryParams);
     const inventoryResult = await handleDynamoError(async () => {
       return await dynamoDb.send(new ScanCommand(inventoryParams));
     });
@@ -47,7 +43,6 @@ export const handler: APIGatewayProxyHandler = async (event) => {
       Limit: 100,
     };
 
-    console.log("Scanning products table:", productsParams);
     const productsResult = await handleDynamoError(async () => {
       return await dynamoDb.send(new ScanCommand(productsParams));
     });
@@ -63,11 +58,10 @@ export const handler: APIGatewayProxyHandler = async (event) => {
         Limit: 100,
       };
 
-      console.log("Scanning alerts table:", alertsParams);
       const alertsResult = await handleDynamoError(async () => {
         return await dynamoDb.send(new ScanCommand(alertsParams));
       });
-      
+
       alertItems = alertsResult.Items || [];
     }
 
@@ -78,11 +72,10 @@ export const handler: APIGatewayProxyHandler = async (event) => {
         Limit: 100,
       };
 
-      console.log("Scanning inventory history table:", historyParams);
       const historyResult = await handleDynamoError(async () => {
         return await dynamoDb.send(new ScanCommand(historyParams));
       });
-      
+
       historyItems = historyResult.Items || [];
     }
 

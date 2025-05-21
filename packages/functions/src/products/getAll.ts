@@ -15,11 +15,8 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     const category = queryParams.category;
     const limit = queryParams.limit ? parseInt(queryParams.limit, 10) : undefined;
     
-    console.log("Retrieving products with params:", { category, limit });
-    
     // Ensure the table name is specified in environment variables
     if (!process.env.PRODUCTS_TABLE) {
-      console.error("Missing PRODUCTS_TABLE environment variable");
       return createErrorResponse(
         500,
         "Server configuration error: Missing products table name"
@@ -65,7 +62,6 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     // Get inventory data for each product if inventory table exists
     if (process.env.INVENTORY_TABLE) {
       try {
-        console.log("Getting inventory data for all products...");
         
         // First, get all inventory items in one go
         const scanParams = {
@@ -76,8 +72,6 @@ export const handler: APIGatewayProxyHandler = async (event) => {
         try {
           const scanResult = await dynamoDb.send(new ScanCommand(scanParams));
           allInventoryItems = scanResult.Items || [];
-          console.log(`Found ${allInventoryItems.length} total inventory items`);
-          console.log("All inventory items:", JSON.stringify(allInventoryItems));
         } catch (scanError) {
           console.error("Error scanning inventory table:", scanError);
         }
@@ -89,7 +83,6 @@ export const handler: APIGatewayProxyHandler = async (event) => {
             item => item.productId === product.productId
           );
           
-          console.log(`Product ${product.productId} (${product.name}) has ${inventoryItems.length} inventory items`);
           
           // Calculate total stock across all locations
           const totalStock = inventoryItems.reduce(
@@ -97,7 +90,6 @@ export const handler: APIGatewayProxyHandler = async (event) => {
             0
           );
           
-          console.log(`Total stock for ${product.name}: ${totalStock}`);
           
           // Return product with stock information
           return {
@@ -107,7 +99,6 @@ export const handler: APIGatewayProxyHandler = async (event) => {
           };
         });
         
-        console.log("Enhanced products with inventory:", JSON.stringify(enhancedProducts));
         return createResponse(200, enhancedProducts);
       } catch (inventoryError) {
         console.error("Error processing inventory data:", inventoryError);

@@ -11,7 +11,6 @@ export const handler: APIGatewayProxyHandler = async () => {
   try {
     // Ensure the table name is specified in environment variables
     if (!process.env.INVENTORY_TABLE) {
-      console.error("Missing INVENTORY_TABLE environment variable");
       return createErrorResponse(
         500,
         "Server configuration error: Missing table name"

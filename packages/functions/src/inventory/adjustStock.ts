@@ -119,24 +119,15 @@ export const handler: APIGatewayProxyHandler = async (event) => {
       };
 
       await handleDynamoError(() => dynamoDb.send(new PutCommand(historyParams)));
-      console.log("Stock adjustment recorded in history");
     }
 
     // Check if we need to create an alert
-    console.log(`[ALERT CHECK] Stock: ${newStockLevel}, Threshold: ${productData.minThreshold}, Below? ${newStockLevel < productData.minThreshold}`);
-    
     const createdAlert = await checkAndCreateAlert({
       productId: adjustmentData.productId,
       locationId: adjustmentData.locationId,
       currentStock: newStockLevel,
       minThreshold: productData.minThreshold
     });
-    
-    if (createdAlert) {
-      console.log(`[ALERT CREATED] ID: ${createdAlert.alertId}`);
-    } else {
-      console.log(`[NO ALERT CREATED] Stock not below threshold`);
-    }
 
     const responseObject = {
       message: "Stock adjusted successfully",
@@ -159,7 +150,6 @@ export const handler: APIGatewayProxyHandler = async (event) => {
       } // Duplicate for backward compatibility
     };
     
-    console.log("Returning response:", JSON.stringify(responseObject, null, 2));
     return createResponse(200, responseObject);
   } catch (error) {
     console.error("Error adjusting stock:", error);
@@ -182,17 +172,11 @@ async function checkAndCreateAlert(item: {
   try {
     // If alerts table is not configured, skip
     if (!process.env.ALERTS_TABLE) {
-      console.log("[ALERT] ALERTS_TABLE environment variable is not set");
       return null;
     }
 
-    // Log the threshold check
-    console.log(`[ALERT] Checking threshold: ${item.currentStock} < ${item.minThreshold} = ${item.currentStock < item.minThreshold}`);
-
     // Check if stock is below minimum threshold
     if (item.currentStock < item.minThreshold) {
-      console.log("[ALERT] Stock is below threshold, checking for existing alerts");
-      
       // Check if there's already an active alert for this product and location
       const existingAlertsParams = {
         TableName: process.env.ALERTS_TABLE,
@@ -210,13 +194,11 @@ async function checkAndCreateAlert(item: {
       const existingAlerts = existingAlertsResult.Items || [];
       
       if (existingAlerts.length > 0) {
-        console.log(`[ALERT] Found existing active alert for product ${item.productId}. Skipping alert creation.`);
         return existingAlerts[0]; // Return the existing alert
       }
       
       // Generate a unique ID for the alert
       const alertId = ulid();
-      console.log(`[ALERT] Generated alertId: ${alertId}`);
       
       // Create the alert object using the schema to ensure proper validation
       const alertData = AlertSchema.parse({
@@ -229,33 +211,27 @@ async function checkAndCreateAlert(item: {
         status: "NEW",
         createdAt: Date.now()
       });
-      
-      console.log(`[ALERT] Alert data: ${JSON.stringify(alertData)}`);
 
       // Create the params for DynamoDB
       const params = {
         TableName: process.env.ALERTS_TABLE,
         Item: alertData,
       };
-      
-      console.log(`[ALERT] Sending to DynamoDB table: ${process.env.ALERTS_TABLE}`);
 
       // Send the command to DynamoDB
       try {
         await dynamoDb.send(new PutCommand(params));
-        console.log(`[ALERT] Successfully created alert with ID: ${alertId}`);
         return alertData;
       } catch (dbError) {
-        console.error(`[ALERT] DynamoDB error creating alert:`, dbError);
+        console.error(`DynamoDB error creating alert:`, dbError);
         return null;
       }
     } else {
-      console.log("[ALERT] Stock is not below threshold, no alert needed");
       return null;
     }
   } catch (error) {
     // Log but don't fail the operation if alert creation fails
-    console.error("[ALERT] Error in checkAndCreateAlert:", error);
+    console.error("Error in checkAndCreateAlert:", error);
     return null;
   }
 }

@@ -13,14 +13,7 @@ import { ulid } from "ulid";
  * Handler to directly create an alert
  */
 export const handler: APIGatewayProxyHandler = async (event) => {
-  console.log("Create alert handler called with event:", JSON.stringify(event, null, 2));
-  
   try {
-    // Log environment information
-    console.log("Environment variables:", {
-      ALERTS_TABLE: process.env.ALERTS_TABLE,
-      NODE_ENV: process.env.NODE_ENV
-    });
     
     // Check if request has a body
     if (!event.body) {
@@ -29,7 +22,6 @@ export const handler: APIGatewayProxyHandler = async (event) => {
 
     // Parse request body
     const body = JSON.parse(event.body);
-    console.log("Alert creation request body:", body);
 
     // Validate environment variables
     if (!process.env.ALERTS_TABLE) {
@@ -48,18 +40,13 @@ export const handler: APIGatewayProxyHandler = async (event) => {
       createdAt: Date.now(),
     });
 
-    console.log("Validated alert data:", alertData);
-
     // Create DynamoDB params
     const params = {
       TableName: process.env.ALERTS_TABLE,
       Item: alertData,
     };
 
-    console.log("Sending PutCommand to DynamoDB:", JSON.stringify(params, null, 2));
     await handleDynamoError(() => dynamoDb.send(new PutCommand(params)));
-    
-    console.log("Alert created successfully with ID:", alertData.alertId);
     
     return createResponse(201, {
       message: "Alert created successfully",

@@ -109,8 +109,6 @@ const initialInventory = [
 
 export const handler: APIGatewayProxyHandler = async (event) => {
   try {
-    console.log("Starting to seed mock data");
-    
     // Check for required environment variables
     if (!process.env.PRODUCTS_TABLE) {
       return createErrorResponse(500, "PRODUCTS_TABLE environment variable is not set");
@@ -118,40 +116,17 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     
     if (!process.env.INVENTORY_TABLE) {
       return createErrorResponse(500, "INVENTORY_TABLE environment variable is not set");
-    }
-    
-    // Debug environment and event
-    console.log("Environment variables:", {
-      PRODUCTS_TABLE: process.env.PRODUCTS_TABLE,
-      INVENTORY_TABLE: process.env.INVENTORY_TABLE,
-      NODE_ENV: process.env.NODE_ENV
-    });
-    
-    console.log("Event data:", {
-      path: event.path,
-      method: event.httpMethod,
-      body: event.body,
-      headers: event.headers
-    });
+    };
     
     // Parse request body if exists to check for options
     const options = event.body ? JSON.parse(event.body) : {};
     const clearExisting = options.clearExisting === true;
     const forceIdempotent = options.forceIdempotent !== false; // Default to true
     
-    // For development, allow clearing existing data
-    if (clearExisting && process.env.NODE_ENV === "development") {
-      console.log("Clearing existing data is enabled, but not implemented yet");
-      // This would require a scan and delete operation which is not efficient
-      // Instead, consider using AWS CLI to drop and recreate tables if needed
-    }
-    
     // Seed products and track product IDs
     const productIds: string[] = [];
     const timestamp = Date.now();
     const results = [];
-    
-    console.log(`Creating ${mockProducts.length} products with inventory data...`);
     
     // Create all products with idempotent IDs (for testing, real version should use random IDs)
     for (let i = 0; i < mockProducts.length; i++) {
@@ -179,7 +154,6 @@ export const handler: APIGatewayProxyHandler = async (event) => {
         
         try {
           await dynamoDb.send(new PutCommand(params));
-          console.log(`Created product: ${product.name} with ID: ${productId}`);
           
           productIds.push(productId);
           results.push({
@@ -200,8 +174,6 @@ export const handler: APIGatewayProxyHandler = async (event) => {
               updatedAt: timestamp,
             };
             
-            console.log(`Creating inventory item for product ${productId}:`, JSON.stringify(inventoryItem));
-            
             const inventoryParams = {
               TableName: process.env.INVENTORY_TABLE,
               Item: inventoryItem,
@@ -209,7 +181,6 @@ export const handler: APIGatewayProxyHandler = async (event) => {
             
             try {
               await dynamoDb.send(new PutCommand(inventoryParams));
-              console.log(`Created inventory record for ${product.name} with stock: ${inventoryItem.currentStock}`);
               
               results.push({
                 type: "inventory",

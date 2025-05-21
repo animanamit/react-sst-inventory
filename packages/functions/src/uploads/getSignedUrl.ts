@@ -32,7 +32,6 @@ export const handler: APIGatewayProxyHandler = async (event) => {
 
     // Get the bucket name from environment variables
     const bucketName = process.env.BUCKET_NAME;
-    console.log("Bucket name from env:", bucketName);
     
     if (!bucketName) {
       return createErrorResponse(500, "Bucket name not configured");

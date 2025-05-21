@@ -11,7 +11,6 @@ export const handler: APIGatewayProxyHandler = async (event) => {
   try {
     // Ensure the table name is specified in environment variables
     if (!process.env.ALERTS_TABLE) {
-      console.error("Missing ALERTS_TABLE environment variable");
       return createErrorResponse(
         500,
         "Server configuration error: Missing table name"

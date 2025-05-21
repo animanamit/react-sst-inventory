@@ -40,7 +40,6 @@ export async function handleDynamoError<T>(operation: () => Promise<T>): Promise
 
 // Helper function for API responses
 export function createResponse(statusCode: number, body: any) {
-  console.log(`Creating response with status code ${statusCode}`);
 
   return {
     statusCode,

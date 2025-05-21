@@ -261,18 +261,6 @@ const AlertsPanel = ({
   const useActiveMockData = false;
   const useHistoryMockData = false;
 
-  // Auto-refresh alerts periodically
-  useEffect(() => {
-    // Periodically check for new alerts (every 20 seconds)
-    const intervalId = setInterval(() => {
-      console.log("Auto-refreshing alerts...");
-      refetchActive();
-    }, 20000);
-
-    // Clear the interval when component unmounts
-    return () => clearInterval(intervalId);
-  }, [refetchActive]);
-
   // Function to render active alert items
   const renderActiveAlerts = () => {
     // We're not using mock data anymore, but we'll keep the type handling for clarity
@@ -646,36 +634,14 @@ const InventoryTable = ({ alertRefetchFunctions }: InventoryTableProps) => {
     { productId: string; changeAmount: number; productName: string }
   >({
     mutationFn: (variables) => {
-      console.log("Calling adjustStock API with variables:", variables);
-
       // Get the product to check minThreshold and current stock
       const product = combinedData.find(
         (p) => p.productId === variables.productId
       );
 
       if (product) {
-        console.log("Product details for threshold check:", {
-          productId: product.productId,
-          name: product.name,
-          currentStock: product.totalStock,
-          minThreshold: product.minThreshold,
-        });
-
         // Predict if this will trigger an alert
         const newStockLevel = product.totalStock + variables.changeAmount;
-        console.log(
-          `Stock change prediction: ${product.totalStock} → ${newStockLevel}`
-        );
-
-        if (newStockLevel < product.minThreshold) {
-          console.log(
-            `ALERT SHOULD BE CREATED: ${newStockLevel} is below threshold ${product.minThreshold}`
-          );
-        } else {
-          console.log(
-            `NO ALERT NEEDED: ${newStockLevel} is not below threshold ${product.minThreshold}`
-          );
-        }
       }
 
       return api.inventory.adjustStock({
@@ -829,39 +795,12 @@ const InventoryTable = ({ alertRefetchFunctions }: InventoryTableProps) => {
                 onClick={async () => {
                   try {
                     const data = await api.debug.getDbState();
-                    console.log("===== DATABASE DEBUG INFO =====");
-                    console.log("TABLES:", data.tables);
-                    console.log("TABLE COUNTS:", data.counts);
-
-                    // Log inventory items
-                    console.log(
-                      "INVENTORY ITEMS:",
-                      data.items.inventory.length
-                    );
-                    data.items.inventory.forEach((item) => {
-                      console.log(
-                        `- ${item.productId}: currentStock=${item.currentStock}`
-                      );
-                    });
-
-                    // Log product items with thresholds
-                    console.log("PRODUCT ITEMS:", data.items.products.length);
-                    data.items.products.forEach((product) => {
-                      console.log(
-                        `- ${product.productId}: ${product.name}, minThreshold=${product.minThreshold}`
-                      );
-                    });
-
-                    // Check for alerts
-                    console.log("ALERT ITEMS:", data.items.alerts.length);
-                    data.items.alerts.forEach((alert) => {
-                      console.log(
-                        `- ${alert.alertId}: productId=${alert.productId}, status=${alert.status}, stock=${alert.currentStock}, threshold=${alert.threshold}`
-                      );
-                    });
-
-                    // Check if there SHOULD be any alerts based on current stock vs threshold
-                    console.log("\nCHECKING FOR MISSING ALERTS:");
+                    
+                    // Check for alert conditions
+                    let alertConditions = 0;
+                    let existingAlerts = 0;
+                    let missingAlerts = 0;
+                    
                     for (const product of data.items.products) {
                       const inventory = data.items.inventory.find(
                         (i) => i.productId === product.productId
@@ -871,10 +810,7 @@ const InventoryTable = ({ alertRefetchFunctions }: InventoryTableProps) => {
                         const threshold = product.minThreshold;
 
                         if (currentStock < threshold) {
-                          console.log(
-                            `!!! ALERT CONDITION: ${product.name} (${product.productId}) has stock=${currentStock} which is below threshold=${threshold}`
-                          );
-
+                          alertConditions++;
                           // Check if an alert exists for this condition
                           const existingAlert = data.items.alerts.find(
                             (a) =>
@@ -883,23 +819,18 @@ const InventoryTable = ({ alertRefetchFunctions }: InventoryTableProps) => {
                           );
 
                           if (existingAlert) {
-                            console.log(
-                              `✓ Alert exists: ${existingAlert.alertId}`
-                            );
+                            existingAlerts++;
                           } else {
-                            console.log(
-                              `❌ NO ALERT EXISTS for this condition!`
-                            );
+                            missingAlerts++;
                           }
                         }
                       }
                     }
 
-                    console.log("===== END DEBUG INFO =====");
-
                     toast.success("Database state printed to console", {
                       duration: 5000,
                       style: { background: "#10B981", color: "white" },
+                      description: `Found ${data.items.alerts.length} alerts (${existingAlerts} active, ${missingAlerts} missing conditions)`
                     });
                   } catch (error) {
                     console.error("Error getting database state:", error);
@@ -914,13 +845,8 @@ const InventoryTable = ({ alertRefetchFunctions }: InventoryTableProps) => {
                 size="sm"
                 onClick={async () => {
                   try {
-                    console.log(
-                      "Calling server-side check-all endpoint to create alerts..."
-                    );
-
                     // Use the direct API endpoint to check and create all alerts
                     const response = await api.alerts.checkAndCreateAll();
-                    console.log("checkAndCreateAll response:", response);
 
                     // Invalidate alerts queries
                     queryClient.invalidateQueries({ queryKey: ["alerts"] });
