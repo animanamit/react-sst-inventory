@@ -83,7 +83,7 @@ export default $config({
         allowHeaders: ["*"],
       },
     });
-    
+
     // Set up ElastiCache Redis for caching
     const cacheCluster = new sst.aws.Cdk.ElastiCacheCluster({
       engine: "redis",
@@ -96,7 +96,7 @@ export default $config({
       redisPort: 6379, // Default Redis port
       parameterGroupName: "default.redis7", // Default parameter group
     });
-    
+
     // Set up the SQS alert queue
     const alertQueue = new sst.aws.Queue("AlertsQueue", {
       consumer: {
@@ -194,7 +194,7 @@ export default $config({
         REDIS_ENABLED: "true",
       },
     });
-    
+
     api.route("POST /products/seed", {
       handler: "packages/functions/src/products/seedMockData.handler",
       link: [productsTable, inventoryTable, cacheCluster],
@@ -233,13 +233,20 @@ export default $config({
 
     api.route("POST /inventory", {
       handler: "packages/functions/src/inventory/adjustStock.handler",
-      link: [inventoryTable, inventoryHistoryTable, alertsTable, productsTable, alertQueue, cacheCluster],
+      link: [
+        inventoryTable,
+        inventoryHistoryTable,
+        alertsTable,
+        productsTable,
+        alertQueue,
+        cacheCluster,
+      ],
       environment: {
         INVENTORY_TABLE: inventoryTable.name,
         PRODUCTS_TABLE: productsTable.name,
         INVENTORY_HISTORY_TABLE: inventoryHistoryTable.name,
         ALERTS_TABLE: alertsTable.name,
-        ALERTS_QUEUE: alertQueue.queueUrl,
+        ALERTS_QUEUE: alertQueue.url,
         REDIS_HOST: cacheCluster.attrRedisEndpointAddress,
         REDIS_PORT: cacheCluster.attrRedisEndpointPort,
         REDIS_KEY_PREFIX: "inventory:",
@@ -254,7 +261,7 @@ export default $config({
         INVENTORY_HISTORY_TABLE: inventoryHistoryTable.name,
       },
     });
-    
+
     // Debug endpoint to verify database contents
     api.route("GET /debug", {
       handler: "packages/functions/src/inventory/debug.handler",
@@ -266,7 +273,7 @@ export default $config({
         ALERTS_TABLE: alertsTable.name,
       },
     });
-    
+
     // Redis test endpoint
     api.route("GET /test/redis", {
       handler: "packages/functions/src/utils/test-redis.handler",
@@ -304,7 +311,7 @@ export default $config({
         ALERTS_TABLE: alertsTable.name,
       },
     });
-    
+
     api.route("POST /alerts", {
       handler: "packages/functions/src/alerts/create.handler",
       link: [alertsTable],
@@ -312,7 +319,7 @@ export default $config({
         ALERTS_TABLE: alertsTable.name,
       },
     });
-    
+
     api.route("POST /alerts/check-all", {
       handler: "packages/functions/src/alerts/check-all.handler",
       link: [alertsTable, inventoryTable, productsTable],

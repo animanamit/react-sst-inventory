@@ -8,11 +8,33 @@ const API_URL = import.meta.env.VITE_API_URL || "";
 // Get credentials configuration based on environment (omit for CORS with '*' origins)
 const CREDENTIALS = "omit" as const;
 
-// Type for optional fetch parameters
+// Import advanced types
+import type {
+  Product,
+  Inventory,
+  Alert,
+  InventoryHistory,
+  ProductCreateInput,
+  ProductUpdateInput,
+  StockAdjustmentInput,
+  ApiResponse,
+  ProductResponse,
+  StockAdjustmentResponse,
+  ProductId,
+  LocationId,
+  AlertId,
+} from "./types";
+// Import non-type imports separately
+import { isApiResponse } from "./types";
+
+// Type for HTTP methods
+type HttpMethod = "GET" | "POST" | "PUT" | "DELETE";
+
+// Type for optional fetch parameters with better type safety
 type FetchOptions = {
-  method?: "GET" | "POST" | "PUT" | "DELETE";
+  method?: HttpMethod;
   headers?: Record<string, string>;
-  body?: any;
+  body?: unknown;
   credentials?: RequestCredentials;
 };
 
@@ -53,7 +75,12 @@ export class ApiError extends Error {
 }
 
 /**
- * Base fetch function with error handling
+ * Base fetch function with error handling and improved type safety
+ * @typeParam T - The expected response data type
+ * @param url - API endpoint URL (without base URL)
+ * @param options - Fetch options
+ * @returns Promise resolving to response data of type T
+ * @throws ApiError when request fails
  */
 const fetchWithErrorHandling = async <T>(
   url: string,
@@ -73,13 +100,35 @@ const fetchWithErrorHandling = async <T>(
     const response = await fetch(fullUrl, fetchOptions);
 
     // Parse the response
-    const data = await response.json().catch(() => null);
+    let data: unknown;
+    try {
+      data = await response.json();
+    } catch (e) {
+      data = null;
+    }
 
     // Handle unsuccessful responses
     if (!response.ok) {
       const errorMessage =
-        data?.error || `API Error: ${response.status} ${response.statusText}`;
+        isApiResponse(data) && typeof data.error === "string"
+          ? data.error
+          : `API Error: ${response.status} ${response.statusText}`;
+
       throw new ApiError(errorMessage, response.status, data);
+    }
+
+    // Validate the response type if possible with a type guard
+    if (isApiResponse(data)) {
+      if (!data.success) {
+        throw new ApiError(
+          data.error || "API returned error status",
+          response.status,
+          data
+        );
+      }
+
+      // For ApiResponse types, extract the data property
+      return (data.data as T) || (data as unknown as T);
     }
 
     return data as T;
@@ -101,31 +150,65 @@ const fetchWithErrorHandling = async <T>(
  */
 export const api = {
   /**
-   * Product-related API methods
+   * Product-related API methods with strong typing
    */
   products: {
     /**
      * Get all products with optional inventory data
+     * @param category - Optional category filter
+     * @returns Promise resolving to array of products
      */
-    getAll: async (category?: string) => {
+    getAll: async (category?: string): Promise<Product[]> => {
       const url = category
         ? `/products?category=${encodeURIComponent(category)}`
         : "/products";
-      return fetchWithErrorHandling(url);
+      return fetchWithErrorHandling<Product[]>(url);
     },
 
     /**
-     * Get a specific product
+     * Get a specific product by ID
+     * @param productId - ID of the product to fetch
+     * @returns Promise resolving to product data
      */
-    getProduct: async (productId: string) => {
-      return fetchWithErrorHandling(`/products/${productId}`);
+    getProduct: async (productId: string): Promise<Product> => {
+      return fetchWithErrorHandling<Product>(`/products/${productId}`);
     },
 
     /**
-     * Create or update a product
+     * Create a new product
+     * @param product - Product data to create
+     * @returns Promise resolving to API response with product data
      */
-    createOrUpdate: async (product: any) => {
-      return fetchWithErrorHandling("/products", {
+    create: async (product: ProductCreateInput): Promise<ProductResponse> => {
+      return fetchWithErrorHandling<ProductResponse>("/products", {
+        method: "POST",
+        body: product,
+      });
+    },
+
+    /**
+     * Update an existing product
+     * @param product - Product data to update (must include productId)
+     * @returns Promise resolving to API response with updated product data
+     */
+    update: async (product: ProductUpdateInput): Promise<ProductResponse> => {
+      return fetchWithErrorHandling<ProductResponse>(
+        `/products/${product.productId}`,
+        {
+          method: "PUT",
+          body: product,
+        }
+      );
+    },
+
+    /**
+     * Create or update a product (deprecated, use create/update instead)
+     * @deprecated Use create or update instead for better type safety
+     */
+    createOrUpdate: async (
+      product: Partial<Product>
+    ): Promise<ProductResponse> => {
+      return fetchWithErrorHandling<ProductResponse>("/products", {
         method: "POST",
         body: product,
       });
@@ -133,9 +216,13 @@ export const api = {
 
     /**
      * Seed the database with mock product data (development only)
+     * @param options - Seeding options
+     * @returns Promise resolving to API response
      */
-    seedMockData: async (options = { clearExisting: false }) => {
-      return fetchWithErrorHandling("/products/seed", {
+    seedMockData: async (
+      options = { clearExisting: false }
+    ): Promise<ApiResponse> => {
+      return fetchWithErrorHandling<ApiResponse>("/products/seed", {
         method: "POST",
         body: options,
       });
