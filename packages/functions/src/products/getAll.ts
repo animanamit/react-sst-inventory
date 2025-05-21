@@ -6,6 +6,11 @@ import {
   createResponse,
   createErrorResponse,
 } from "../utils/dynamodb";
+import {
+  getRedisClient,
+  getCache,
+  setCache,
+} from "../utils/redis";
 import { Product } from "../utils/types";
 
 export const handler: APIGatewayProxyHandler = async (event) => {
@@ -21,6 +26,32 @@ export const handler: APIGatewayProxyHandler = async (event) => {
         500,
         "Server configuration error: Missing products table name"
       );
+    }
+    
+    // Initialize Redis client if enabled
+    const redisEnabled = process.env.REDIS_ENABLED === "true";
+    let redisClient;
+    let cacheKey = "";
+    
+    if (redisEnabled) {
+      try {
+        redisClient = getRedisClient({});
+        // Create a cache key based on the request parameters
+        cacheKey = category 
+          ? `products:category:${category}${limit ? `:limit:${limit}` : ""}`
+          : `products:all${limit ? `:limit:${limit}` : ""}`;
+          
+        // Try to get cached data first
+        const cachedData = await getCache<any>(redisClient, cacheKey);
+        if (cachedData) {
+          console.log(`Cache hit for ${cacheKey}`);
+          return createResponse(200, cachedData);
+        }
+        console.log(`Cache miss for ${cacheKey}`);
+      } catch (redisError) {
+        console.error("Redis connection error:", redisError);
+        // Continue execution even if Redis fails
+      }
     }
 
     let products: Product[] = [];
@@ -59,10 +90,11 @@ export const handler: APIGatewayProxyHandler = async (event) => {
       products = result;
     }
     
+    let responseData = products;
+    
     // Get inventory data for each product if inventory table exists
     if (process.env.INVENTORY_TABLE) {
       try {
-        
         // First, get all inventory items in one go
         const scanParams = {
           TableName: process.env.INVENTORY_TABLE!
@@ -83,13 +115,11 @@ export const handler: APIGatewayProxyHandler = async (event) => {
             item => item.productId === product.productId
           );
           
-          
           // Calculate total stock across all locations
           const totalStock = inventoryItems.reduce(
             (sum, item) => sum + (item.currentStock || 0), 
             0
           );
-          
           
           // Return product with stock information
           return {
@@ -99,16 +129,32 @@ export const handler: APIGatewayProxyHandler = async (event) => {
           };
         });
         
-        return createResponse(200, enhancedProducts);
+        responseData = enhancedProducts;
       } catch (inventoryError) {
         console.error("Error processing inventory data:", inventoryError);
         // Still return products even if inventory fetch fails
-        return createResponse(200, products);
+        responseData = products;
       }
     }
     
-    // Return just the products if no inventory lookup needed
-    return createResponse(200, products);
+    // Cache the results if Redis is enabled
+    if (redisEnabled && redisClient && cacheKey) {
+      try {
+        // Get cache TTL from environment or use default (1 hour)
+        const cacheTtl = process.env.REDIS_TTL 
+          ? parseInt(process.env.REDIS_TTL, 10) 
+          : 3600;
+          
+        await setCache(redisClient, cacheKey, responseData, cacheTtl);
+        console.log(`Cached data at ${cacheKey} for ${cacheTtl} seconds`);
+      } catch (cacheError) {
+        console.error("Error caching data:", cacheError);
+        // Continue execution even if caching fails
+      }
+    }
+    
+    // Return the response data
+    return createResponse(200, responseData);
   } catch (error) {
     console.error("Error retrieving products:", error);
     return createErrorResponse(

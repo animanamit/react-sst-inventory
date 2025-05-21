@@ -13,6 +13,7 @@ import {
   AlertMessageSchema
 } from "../utils/types";
 import { sendSqsMessage, handleSqsError } from "../utils/sqs";
+import { getRedisClient, deleteCache } from "../utils/redis";
 import { ulid } from "ulid";
 
 export const handler: APIGatewayProxyHandler = async (event) => {
@@ -101,6 +102,20 @@ export const handler: APIGatewayProxyHandler = async (event) => {
 
     await handleDynamoError(() => dynamoDb.send(new PutCommand(updateParams)));
     
+    // Initialize Redis client if enabled
+    const redisEnabled = process.env.REDIS_ENABLED === "true";
+    let redisClient;
+    
+    if (redisEnabled) {
+      try {
+        redisClient = getRedisClient({});
+        console.log("Redis client initialized for cache invalidation in adjustStock");
+      } catch (redisError) {
+        console.error("Redis connection error:", redisError);
+        // Continue execution even if Redis fails
+      }
+    }
+    
     // Record this adjustment in history if history table exists
     if (process.env.INVENTORY_HISTORY_TABLE) {
       const historyData = InventoryHistorySchema.parse({
@@ -121,6 +136,35 @@ export const handler: APIGatewayProxyHandler = async (event) => {
       };
 
       await handleDynamoError(() => dynamoDb.send(new PutCommand(historyParams)));
+    }
+    
+    // Invalidate cache since inventory data has changed
+    if (redisEnabled && redisClient) {
+      try {
+        // Inventory cache keys may not exist yet, but we'll create a pattern
+        // based on what we would use if we implement caching for inventory
+        const inventoryCacheKey = `inventory:*`;
+        
+        // We also need to invalidate product cache as it contains inventory data
+        const productCacheKey = `products:*`;
+        
+        // Additionally, invalidate any product-specific cache for this product
+        const productSpecificKey = `product:${adjustmentData.productId}`;
+        
+        // List of cache keys to invalidate
+        const keysToInvalidate = [inventoryCacheKey, productCacheKey, productSpecificKey];
+        
+        // Invalidate all relevant cache keys
+        for (const key of keysToInvalidate) {
+          console.log(`Invalidating cache for pattern: ${key}`);
+          await deleteCache(redisClient, key);
+        }
+        
+        console.log('Cache invalidation completed successfully in adjustStock');
+      } catch (cacheError) {
+        console.error("Error invalidating cache:", cacheError);
+        // Continue execution even if cache invalidation fails
+      }
     }
 
     // Check if we need to create an alert

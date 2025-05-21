@@ -6,6 +6,10 @@ import {
   createResponse,
   createErrorResponse,
 } from "../utils/dynamodb";
+import {
+  getRedisClient,
+  deleteCache,
+} from "../utils/redis";
 import { ProductSchema, Product } from "../utils/types";
 import { ulid } from "ulid";
 
@@ -26,6 +30,20 @@ export const handler: APIGatewayProxyHandler = async (event) => {
       return createErrorResponse(500, "PRODUCTS_TABLE environment variable is not set");
     }
     
+    // Initialize Redis client if enabled
+    const redisEnabled = process.env.REDIS_ENABLED === "true";
+    let redisClient;
+    
+    if (redisEnabled) {
+      try {
+        redisClient = getRedisClient({});
+        console.log("Redis client initialized for cache invalidation");
+      } catch (redisError) {
+        console.error("Redis connection error:", redisError);
+        // Continue execution even if Redis fails
+      }
+    }
+    
     // Validate input with zod
     let validatedData;
     try {
@@ -36,10 +54,12 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     }
     
     // Check if the product already exists
+    let isUpdate = false;
     if (!validatedData.productId) {
       // Generate a new ID for new products
       validatedData.productId = ulid();
     } else {
+      isUpdate = true;
       // For updates, get the existing record first
       const existingItemParams = {
         TableName: process.env.PRODUCTS_TABLE!,
@@ -56,6 +76,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
         if (!existingProduct) {
           // If updating non-existent product, ensure we have all required fields
           ProductSchema.parse(validatedData);
+          isUpdate = false;
         }
       } catch (dbError) {
         console.error("Database error when checking existing product:", dbError);
@@ -77,6 +98,42 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     } catch (putError) {
       console.error("Error writing to database:", putError);
       return createErrorResponse(500, `Database write error: ${(putError as Error).message}`);
+    }
+    
+    // Invalidate cache after successful database update
+    if (redisEnabled && redisClient) {
+      try {
+        // Determine which cache keys to invalidate
+        const productId = validatedData.productId;
+        const category = validatedData.category;
+        
+        // For product updates, invalidate the specific product cache
+        if (isUpdate) {
+          console.log(`Invalidating cache for updated product: ${productId}`);
+          // Delete specific product cache if we implement single product view
+          await deleteCache(redisClient, `product:${productId}`);
+        }
+        
+        // Always invalidate the category and all-products caches since they'll contain this product
+        const keysToInvalidate = [
+          'products:all*', // All products listing
+        ];
+        
+        if (category) {
+          keysToInvalidate.push(`products:category:${category}*`); // Category-specific listing
+        }
+        
+        // Invalidate all relevant cache keys
+        for (const key of keysToInvalidate) {
+          console.log(`Invalidating cache for pattern: ${key}`);
+          await deleteCache(redisClient, key);
+        }
+        
+        console.log('Cache invalidation completed successfully');
+      } catch (cacheError) {
+        console.error("Error invalidating cache:", cacheError);
+        // Continue execution even if cache invalidation fails
+      }
     }
 
     return createResponse(200, { 
