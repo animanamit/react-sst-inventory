@@ -232,4 +232,16 @@ export const api = {
     // Return the URL without the query parameters
     return url.split("?")[0];
   },
+  
+  /**
+   * Debug helper functions
+   */
+  debug: {
+    /**
+     * Get the current state of all database tables
+     */
+    getDbState: async () => {
+      return fetchWithErrorHandling("/debug");
+    },
+  },
 };

@@ -120,9 +120,24 @@ export const handler: APIGatewayProxyHandler = async (event) => {
       return createErrorResponse(500, "INVENTORY_TABLE environment variable is not set");
     }
     
+    // Debug environment and event
+    console.log("Environment variables:", {
+      PRODUCTS_TABLE: process.env.PRODUCTS_TABLE,
+      INVENTORY_TABLE: process.env.INVENTORY_TABLE,
+      NODE_ENV: process.env.NODE_ENV
+    });
+    
+    console.log("Event data:", {
+      path: event.path,
+      method: event.httpMethod,
+      body: event.body,
+      headers: event.headers
+    });
+    
     // Parse request body if exists to check for options
     const options = event.body ? JSON.parse(event.body) : {};
     const clearExisting = options.clearExisting === true;
+    const forceIdempotent = options.forceIdempotent !== false; // Default to true
     
     // For development, allow clearing existing data
     if (clearExisting && process.env.NODE_ENV === "development") {
@@ -134,57 +149,110 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     // Seed products and track product IDs
     const productIds: string[] = [];
     const timestamp = Date.now();
+    const results = [];
+    
+    console.log(`Creating ${mockProducts.length} products with inventory data...`);
     
     // Create all products with idempotent IDs (for testing, real version should use random IDs)
     for (let i = 0; i < mockProducts.length; i++) {
-      const productData = mockProducts[i];
-      
-      // Generate a new product ID if not in development mode (in dev mode, use predictable IDs)
-      const productId = process.env.NODE_ENV === "development" 
-        ? `product-${i+1}` 
-        : ulid();
-      
-      // Create a valid product object with the schema
-      const product = ProductSchema.parse({
-        ...productData,
-        productId,
-        createdAt: timestamp,
-        updatedAt: timestamp,
-      });
-      
-      // Store the product in DynamoDB
-      const params = {
-        TableName: process.env.PRODUCTS_TABLE,
-        Item: product,
-      };
-      
-      await handleDynamoError(() => dynamoDb.send(new PutCommand(params)));
-      
-      console.log(`Created product: ${product.name} with ID: ${productId}`);
-      productIds.push(productId);
-      
-      // Create inventory record for this product
-      if (initialInventory[i]) {
-        const inventoryItem = {
-          ...initialInventory[i],
-          productId: productId,
+      try {
+        const productData = mockProducts[i];
+        
+        // Generate a new product ID if not in development mode (in dev mode, use predictable IDs)
+        const productId = (process.env.NODE_ENV === "development" || forceIdempotent)
+          ? `product-${i+1}` 
+          : ulid();
+        
+        // Create a valid product object with the schema
+        const product = ProductSchema.parse({
+          ...productData,
+          productId,
           createdAt: timestamp,
           updatedAt: timestamp,
+        });
+        
+        // Store the product in DynamoDB
+        const params = {
+          TableName: process.env.PRODUCTS_TABLE,
+          Item: product,
         };
         
-        const inventoryParams = {
-          TableName: process.env.INVENTORY_TABLE,
-          Item: inventoryItem,
-        };
-        
-        await handleDynamoError(() => dynamoDb.send(new PutCommand(inventoryParams)));
-        console.log(`Created inventory record for ${product.name} with stock: ${inventoryItem.currentStock}`);
+        try {
+          await dynamoDb.send(new PutCommand(params));
+          console.log(`Created product: ${product.name} with ID: ${productId}`);
+          
+          productIds.push(productId);
+          results.push({
+            type: "product",
+            success: true,
+            name: product.name,
+            id: productId
+          });
+          
+          // Create inventory record for this product
+          if (initialInventory[i]) {
+            // Make sure we set the correct fields for inventory
+            const inventoryItem = {
+              productId: productId,
+              locationId: initialInventory[i].locationId || "main",
+              currentStock: initialInventory[i].currentStock,
+              createdAt: timestamp,
+              updatedAt: timestamp,
+            };
+            
+            console.log(`Creating inventory item for product ${productId}:`, JSON.stringify(inventoryItem));
+            
+            const inventoryParams = {
+              TableName: process.env.INVENTORY_TABLE,
+              Item: inventoryItem,
+            };
+            
+            try {
+              await dynamoDb.send(new PutCommand(inventoryParams));
+              console.log(`Created inventory record for ${product.name} with stock: ${inventoryItem.currentStock}`);
+              
+              results.push({
+                type: "inventory",
+                success: true,
+                productId: productId,
+                stock: inventoryItem.currentStock
+              });
+            } catch (invError) {
+              console.error(`Error creating inventory for ${product.name}:`, invError);
+              results.push({
+                type: "inventory",
+                success: false,
+                productId: productId,
+                error: invError instanceof Error ? invError.message : "Unknown error"
+              });
+            }
+          }
+        } catch (prodError) {
+          console.error(`Error creating product ${product.name}:`, prodError);
+          results.push({
+            type: "product",
+            success: false,
+            name: product.name,
+            error: prodError instanceof Error ? prodError.message : "Unknown error"
+          });
+        }
+      } catch (itemError) {
+        console.error(`Error processing item at index ${i}:`, itemError);
+        results.push({
+          type: "error",
+          index: i,
+          error: itemError instanceof Error ? itemError.message : "Unknown error"
+        });
       }
     }
     
+    const successfulProducts = results.filter(r => r.type === "product" && r.success).length;
+    const successfulInventory = results.filter(r => r.type === "inventory" && r.success).length;
+    
     return createResponse(200, {
-      message: `Successfully seeded ${productIds.length} products with inventory data`,
-      productIds
+      message: `Successfully created ${successfulProducts} products and ${successfulInventory} inventory records`,
+      productIds,
+      details: results
     });
   } catch (error) {
     console.error("Error seeding mock data:", error);

@@ -65,37 +65,52 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     // Get inventory data for each product if inventory table exists
     if (process.env.INVENTORY_TABLE) {
       try {
-        const enhancedProducts = await Promise.all(
-          products.map(async (product) => {
-            const inventoryParams = {
-              TableName: process.env.INVENTORY_TABLE!,
-              KeyConditionExpression: "productId = :productId",
-              ExpressionAttributeValues: {
-                ":productId": product.productId
-              }
-            };
-            
-            const inventoryResult = await dynamoDb.send(new QueryCommand(inventoryParams));
-            const inventoryItems = inventoryResult.Items || [];
-            
-            // Calculate total stock across all locations
-            const totalStock = inventoryItems.reduce(
-              (sum, item) => sum + (item.currentStock || 0), 
-              0
-            );
-            
-            // Return product with stock information
-            return {
-              ...product,
-              inventory: inventoryItems,
-              totalStock
-            };
-          })
-        );
+        console.log("Getting inventory data for all products...");
         
+        // First, get all inventory items in one go
+        const scanParams = {
+          TableName: process.env.INVENTORY_TABLE!
+        };
+        
+        let allInventoryItems = [];
+        try {
+          const scanResult = await dynamoDb.send(new ScanCommand(scanParams));
+          allInventoryItems = scanResult.Items || [];
+          console.log(`Found ${allInventoryItems.length} total inventory items`);
+          console.log("All inventory items:", JSON.stringify(allInventoryItems));
+        } catch (scanError) {
+          console.error("Error scanning inventory table:", scanError);
+        }
+        
+        // Now map inventory items to products
+        const enhancedProducts = products.map(product => {
+          // Find matching inventory items for this product
+          const inventoryItems = allInventoryItems.filter(
+            item => item.productId === product.productId
+          );
+          
+          console.log(`Product ${product.productId} (${product.name}) has ${inventoryItems.length} inventory items`);
+          
+          // Calculate total stock across all locations
+          const totalStock = inventoryItems.reduce(
+            (sum, item) => sum + (item.currentStock || 0), 
+            0
+          );
+          
+          console.log(`Total stock for ${product.name}: ${totalStock}`);
+          
+          // Return product with stock information
+          return {
+            ...product,
+            inventory: inventoryItems,
+            totalStock
+          };
+        });
+        
+        console.log("Enhanced products with inventory:", JSON.stringify(enhancedProducts));
         return createResponse(200, enhancedProducts);
       } catch (inventoryError) {
-        console.error("Error fetching inventory data:", inventoryError);
+        console.error("Error processing inventory data:", inventoryError);
         // Still return products even if inventory fetch fails
         return createResponse(200, products);
       }

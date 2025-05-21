@@ -31,10 +31,11 @@ import {
 } from "~/components/ui/card";
 import { Input } from "~/components/ui/input";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "~/components/ui/tabs";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { formatDistanceToNow } from "date-fns";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "~/lib/api";
+import { seedDatabase } from "~/lib/seed-utils";
 import type { Route } from ".react-router/types/app/routes/+types/home";
 import { toast } from "sonner";
 
@@ -155,7 +156,7 @@ const InventoryTable = () => {
   const queryClient = useQueryClient();
 
   // Types for the data from our API
-  interface ProductWithInventory {
+  interface Product {
     productId: string;
     name: string;
     description: string;
@@ -163,57 +164,72 @@ const InventoryTable = () => {
     sku?: string;
     imageUrl?: string;
     minThreshold: number;
-    inventory?: Array<{
-      productId: string;
-      locationId: string;
-      currentStock: number;
-    }>;
+  }
+  
+  interface InventoryItem {
+    productId: string;
+    locationId: string;
+    currentStock: number;
+  }
+  
+  interface ProductWithInventory extends Product {
     totalStock: number;
   }
 
-  // Fetch products data from API with inventory information included
+  // Fetch products data
   const {
-    data: productsData = [],
-    isLoading,
-    isError,
-    refetch,
+    data: productsData = [] as Product[],
+    isLoading: isLoadingProducts,
+    isError: isProductsError,
+    refetch: refetchProducts
   } = useQuery({
     queryKey: ["products"],
-    queryFn: async () => {
-      try {
-        // If we get a 404, the API isn't deployed yet - try seeding the db first
-        try {
-          const data = await api.products.getAll();
-          return data as ProductWithInventory[];
-        } catch (error: any) {
-          // If API error is 404, try seeding mock data
-          if (error.status === 404 && process.env.NODE_ENV === "development") {
-            console.log(
-              "Products API not found, attempting to seed mock data..."
-            );
-            await api.products.seedMockData();
-            const data = await api.products.getAll();
-            return data as ProductWithInventory[];
-          }
-          throw error;
-        }
-      } catch (error) {
-        console.error("Error fetching products:", error);
-        // Return mock data converted to the right format for development
-        if (process.env.NODE_ENV === "development") {
-          return mockInventoryData.map((item) => ({
-            productId: item.id,
-            name: item.name,
-            description: item.description,
-            minThreshold: item.threshold,
-            imageUrl: item.imageUrl,
-            totalStock: item.quantity,
-          })) as ProductWithInventory[];
-        }
-        return [] as ProductWithInventory[];
-      }
+    queryFn: async (): Promise<Product[]> => {
+      const data = await api.products.getAll();
+      return data as Product[];
     },
+    staleTime: 30000,
+    refetchOnWindowFocus: false,
   });
+  
+  // Fetch inventory data separately
+  const {
+    data: inventoryData = [] as InventoryItem[],
+    isLoading: isLoadingInventory,
+    isError: isInventoryError,
+    refetch: refetchInventory
+  } = useQuery({
+    queryKey: ["inventory"],
+    queryFn: async (): Promise<InventoryItem[]> => {
+      const data = await api.debug.getDbState();
+      return (data as any).items.inventory as InventoryItem[];
+    },
+    staleTime: 30000,
+    refetchOnWindowFocus: false,
+  });
+  
+  // Simple combine function to merge products with their inventory
+  const combinedData: ProductWithInventory[] = productsData.map((product: Product) => {
+    // Find matching inventory item
+    const inventory = inventoryData.find((item: InventoryItem) => 
+      item.productId === product.productId
+    );
+    
+    return {
+      ...product,
+      totalStock: inventory ? inventory.currentStock : 0
+    };
+  });
+  
+  // Simplified loading and error states
+  const isLoading = isLoadingProducts || isLoadingInventory;
+  const isError = isProductsError || isInventoryError;
+  
+  // Refetch both data sources
+  const refetch = () => {
+    refetchProducts();
+    refetchInventory();
+  };
 
   // Mutation for adjusting stock levels
   const adjustStockMutation = useMutation({
@@ -243,7 +259,7 @@ const InventoryTable = () => {
   };
 
   // Filter products based on search query
-  const filteredProducts = productsData.filter(
+  const filteredProducts = combinedData.filter(
     (product) =>
       !searchQuery ||
       product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -270,22 +286,22 @@ const InventoryTable = () => {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => {
-                  toast.promise(
-                    api.products.seedMockData().then(() => refetch()),
-                    {
-                      loading: "Seeding database with mock data...",
-                      success: "Database seeded successfully!",
-                      error: "Failed to seed database. Please try again.",
-                    }
-                  );
+                onClick={async () => {
+                  await seedDatabase();
+                  
+                  // Wait a moment to ensure DB operations are complete
+                  setTimeout(() => {
+                    // Simply refetch both data sources
+                    refetchProducts();
+                    refetchInventory();
+                  }, 1000);
                 }}
                 disabled={isLoading || adjustStockMutation.isPending}
               >
                 {isLoading ? (
                   <span className="flex items-center">
                     <svg
-                      className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
+                      className="animate-spin -ml-1 mr-2 h-4 w-4"
                       xmlns="http://www.w3.org/2000/svg"
                       fill="none"
                       viewBox="0 0 24 24"

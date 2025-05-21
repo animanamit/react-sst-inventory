@@ -195,6 +195,16 @@ export default $config({
         INVENTORY_HISTORY_TABLE: inventoryHistoryTable.name,
       },
     });
+    
+    // Debug endpoint to verify database contents
+    api.route("GET /debug", {
+      handler: "packages/functions/src/inventory/debug.handler",
+      link: [productsTable, inventoryTable],
+      environment: {
+        PRODUCTS_TABLE: productsTable.name,
+        INVENTORY_TABLE: inventoryTable.name,
+      },
+    });
 
     /* ───────────── Alerts ───────────── */
     api.route("GET /alerts", {
