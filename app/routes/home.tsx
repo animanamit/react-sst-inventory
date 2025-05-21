@@ -32,9 +32,10 @@ import {
 } from "~/components/ui/card";
 import { Input } from "~/components/ui/input";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "~/components/ui/tabs";
-import { useState } from "react";
-
+import { useState, useEffect } from "react";
 import { formatDistanceToNow } from "date-fns";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "~/lib/api";
 import type { Route } from ".react-router/types/app/routes/+types/home";
 
 const AlertsPanel = () => {
@@ -147,11 +148,67 @@ const AlertsPanel = () => {
 };
 
 const InventoryTable = () => {
+  // Define the shape of the inventory data we expect from the API
+  interface APIInventoryItem {
+    productId: string;
+    name: string;
+    description: string;
+    currentStock: number;
+    minThreshold: number;
+    imageUrl?: string;
+    // other fields we don't need for display
+  }
+
+  // Type for the frontend inventory items
+  type FrontendInventoryItem = typeof mockInventoryData[0];
+
+  // Fetch inventory data from API
+  const {
+    data: apiInventoryData = [] as FrontendInventoryItem[],
+    isLoading,
+    isError,
+  } = useQuery({
+    queryKey: ["inventory"],
+    queryFn: async () => {
+      try {
+        const data = await api.inventory.getAll() as APIInventoryItem[];
+        // Transform API data to match the frontend format
+        return data.map(item => ({
+          id: item.productId,
+          name: item.name,
+          description: item.description,
+          quantity: item.currentStock,
+          threshold: item.minThreshold,
+          imageUrl: item.imageUrl || "",
+        })) as FrontendInventoryItem[];
+      } catch (error) {
+        console.error("Error fetching inventory:", error);
+        return [] as FrontendInventoryItem[];
+      }
+    },
+  });
+
+  // Combine API data with mock data for development
+  const combinedInventoryData: FrontendInventoryItem[] = [...apiInventoryData, ...mockInventoryData];
+
+  // Remove duplicates (if items with same id exist in both sources)
+  const uniqueInventoryData = combinedInventoryData.filter(
+    (item, index, self) => index === self.findIndex((t) => t.id === item.id)
+  );
+
   return (
     <Card className="shadow-sm">
       <CardHeader className="pb-3">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <CardTitle>Inventory Items</CardTitle>
+          <div className="flex items-center gap-2">
+            <CardTitle>Inventory Items</CardTitle>
+            <Button variant="default" size="sm" asChild>
+              <a href="/inventory-add">
+                <PlusIcon className="h-4 w-4 mr-1" />
+                Add Item
+              </a>
+            </Button>
+          </div>
           <div className="relative w-full md:w-64">
             <SearchIcon className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
             <Input
@@ -176,92 +233,116 @@ const InventoryTable = () => {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {mockInventoryData.map((item) => (
-              <TableRow key={item.id}>
-                <TableCell>
-                  <div className="flex items-center gap-3">
-                    <div className="h-12 w-12 rounded-md overflow-hidden bg-gray-100 flex-shrink-0">
-                      <img
-                        // src={item.imageUrl || "/placeholder.svg"}
-                        // alt={item.name}
-                        className="h-full w-full object-cover"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).src =
-                            "/diverse-products-still-life.png";
-                        }}
-                      />
-                    </div>
-                    <div>
-                      <div className="font-medium">{item.name}</div>
-                      {/* <div className="text-sm text-gray-500">{item.sku}</div> */}
-                    </div>
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className="h-8 w-8"
-                      // onClick={() => handleQuantityChange(item.id, -1)}
-                    >
-                      <MinusIcon className="h-4 w-4" />
-                    </Button>
-                    <span className="w-12 text-center font-medium">
-                      {item.quantity}
-                    </span>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className="h-8 w-8"
-                      // onClick={() => handleQuantityChange(item.id, 1)}
-                    >
-                      <PlusIcon className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <div className="flex items-center gap-2">
-                    <span>{item.threshold}</span>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8"
-                      // onClick={() => openThresholdModal(item)}
-                    >
-                      <GearIcon className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </TableCell>
-                <TableCell>
-                  {item.quantity <= item.threshold ? (
-                    <Badge
-                      variant="outline"
-                      className="bg-amber-50 text-amber-700 border-amber-200 flex items-center gap-1"
-                    >
-                      {/* <AlertTriangle className="h-3 w-3" /> */}
-                      Low Stock
-                    </Badge>
-                  ) : (
-                    <Badge
-                      variant="outline"
-                      className="bg-green-50 text-green-700 border-green-200"
-                    >
-                      In Stock
-                    </Badge>
-                  )}
-                </TableCell>
-                <TableCell>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    // onClick={() => openThresholdModal(item)}
-                  >
-                    Set Threshold
-                  </Button>
+            {isLoading ? (
+              <TableRow>
+                <TableCell colSpan={5} className="text-center py-8">
+                  Loading inventory data...
                 </TableCell>
               </TableRow>
-            ))}
+            ) : isError ? (
+              <TableRow>
+                <TableCell
+                  colSpan={5}
+                  className="text-center py-8 text-red-600"
+                >
+                  Error loading inventory data. Showing mock data only.
+                </TableCell>
+              </TableRow>
+            ) : uniqueInventoryData.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={5} className="text-center py-8">
+                  No inventory items found. Add some using the "Add Item"
+                  button.
+                </TableCell>
+              </TableRow>
+            ) : (
+              uniqueInventoryData.map((item) => (
+                <TableRow key={item.id}>
+                  <TableCell>
+                    <div className="flex items-center gap-3">
+                      <div className="h-12 w-12 rounded-md overflow-hidden bg-gray-100 flex-shrink-0">
+                        <img
+                          // src={item.imageUrl || "/placeholder.svg"}
+                          // alt={item.name}
+                          className="h-full w-full object-cover"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src =
+                              "/diverse-products-still-life.png";
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <div className="font-medium">{item.name}</div>
+                        {/* <div className="text-sm text-gray-500">{item.sku}</div> */}
+                      </div>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-8 w-8"
+                        // onClick={() => handleQuantityChange(item.id, -1)}
+                      >
+                        <MinusIcon className="h-4 w-4" />
+                      </Button>
+                      <span className="w-12 text-center font-medium">
+                        {item.quantity}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-8 w-8"
+                        // onClick={() => handleQuantityChange(item.id, 1)}
+                      >
+                        <PlusIcon className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <span>{item.threshold}</span>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        // onClick={() => openThresholdModal(item)}
+                      >
+                        <GearIcon className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    {item.quantity <= item.threshold ? (
+                      <Badge
+                        variant="outline"
+                        className="bg-amber-50 text-amber-700 border-amber-200 flex items-center gap-1"
+                      >
+                        {/* <AlertTriangle className="h-3 w-3" /> */}
+                        Low Stock
+                      </Badge>
+                    ) : (
+                      <Badge
+                        variant="outline"
+                        className="bg-green-50 text-green-700 border-green-200"
+                      >
+                        In Stock
+                      </Badge>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      // onClick={() => openThresholdModal(item)}
+                    >
+                      Set Threshold
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
           </TableBody>
         </Table>
       </CardContent>

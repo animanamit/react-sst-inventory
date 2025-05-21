@@ -11,6 +11,8 @@ export default [
   //   path: "inventory/:id",
   //   lazy: () => import("./routes/inventory/detail.tsx"),
   // },
+  route("/inventory-add", "routes/inventory-add.tsx"),
   // Alert routes
   // { path: "alerts", lazy: () => import("./routes/alerts/index.tsx") },
+  route("/images", "routes/images.tsx"),
 ] satisfies RouteConfig;

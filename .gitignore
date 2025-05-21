@@ -9,5 +9,8 @@
 .sst
 
 .env
-CLAUDE.md
+*.md
+!README.md
 /technical-info
+
+/packages/functions/node_modules

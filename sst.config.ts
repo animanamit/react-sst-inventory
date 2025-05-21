@@ -91,7 +91,8 @@ export default $config({
       cors: {
         allowHeaders: ["*"],
         allowMethods: ["*"],
-        allowOrigins: ["http://localhost:5173"],
+        allowOrigins: ["http://localhost:3000"],
+        allowCredentials: true,
       },
     });
 
@@ -156,6 +157,12 @@ export default $config({
     api.route("PUT /alerts/{id}/acknowledge", {
       handler: "packages/functions/src/alerts/acknowledge.handler",
       link: [alertsTable],
+    });
+
+    /* ───────────── File Uploads ───────────── */
+    api.route("GET /uploads/presigned-url", {
+      handler: "packages/functions/src/uploads/getSignedUrl.handler",
+      link: [bucket],
     });
 
     // Set up React frontend
