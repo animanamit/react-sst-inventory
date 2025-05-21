@@ -2,9 +2,8 @@
  * API client for connecting to the backend services
  */
 
-// Base API URL from environment variables 
+// Base API URL from environment variables
 const API_URL = import.meta.env.VITE_API_URL || "";
-console.log("Using API URL:", API_URL);
 
 // Get credentials configuration based on environment (omit for CORS with '*' origins)
 const CREDENTIALS = "omit" as const;
@@ -78,7 +77,8 @@ const fetchWithErrorHandling = async <T>(
 
     // Handle unsuccessful responses
     if (!response.ok) {
-      const errorMessage = data?.error || `API Error: ${response.status} ${response.statusText}`;
+      const errorMessage =
+        data?.error || `API Error: ${response.status} ${response.statusText}`;
       throw new ApiError(errorMessage, response.status, data);
     }
 
@@ -90,7 +90,8 @@ const fetchWithErrorHandling = async <T>(
     }
 
     // Convert other errors to ApiError
-    const message = error instanceof Error ? error.message : "Unknown error occurred";
+    const message =
+      error instanceof Error ? error.message : "Unknown error occurred";
     throw new ApiError(message, 500);
   }
 };
@@ -107,7 +108,7 @@ export const api = {
      * Get all products with optional inventory data
      */
     getAll: async (category?: string) => {
-      const url = category 
+      const url = category
         ? `/products?category=${encodeURIComponent(category)}`
         : "/products";
       return fetchWithErrorHandling(url);
@@ -201,14 +202,14 @@ export const api = {
   getUploadUrl: async (fileName: string, contentType: string) => {
     const params = new URLSearchParams({
       fileName,
-      contentType
+      contentType,
     });
-    
+
     const response = await fetchWithErrorHandling<{
       uploadUrl: string;
       fileUrl: string;
     }>(`/uploads/presigned-url?${params.toString()}`);
-    
+
     return response;
   },
 
@@ -232,7 +233,69 @@ export const api = {
     // Return the URL without the query parameters
     return url.split("?")[0];
   },
-  
+
+  /**
+   * Alert-related API methods
+   */
+  alerts: {
+    /**
+     * Get all alerts with optional filters
+     */
+    getAll: async (status?: string) => {
+      const url = status
+        ? `/alerts?status=${encodeURIComponent(status)}`
+        : "/alerts";
+      return fetchWithErrorHandling(url);
+    },
+
+    /**
+     * Get a specific alert by ID
+     */
+    getById: async (alertId: string) => {
+      return fetchWithErrorHandling(`/alerts/${alertId}`);
+    },
+
+    /**
+     * Acknowledge an alert
+     */
+    acknowledge: async (alertId: string, userId?: string) => {
+      return fetchWithErrorHandling(`/alerts/${alertId}/acknowledge`, {
+        method: "PUT",
+        body: { userId: userId || "system" },
+      });
+    },
+
+    /**
+     * Create an alert directly
+     */
+    create: async (alertData: {
+      productId: string;
+      locationId?: string;
+      alertType: string;
+      threshold: number;
+      currentStock: number;
+      status?: string;
+    }) => {
+      return fetchWithErrorHandling(`/alerts`, {
+        method: "POST",
+        body: {
+          ...alertData,
+          locationId: alertData.locationId || "main",
+          status: alertData.status || "NEW",
+        },
+      });
+    },
+
+    /**
+     * Create alerts for all current conditions
+     */
+    checkAndCreateAll: async () => {
+      return fetchWithErrorHandling(`/alerts/check-all`, {
+        method: "POST",
+      });
+    },
+  },
+
   /**
    * Debug helper functions
    */

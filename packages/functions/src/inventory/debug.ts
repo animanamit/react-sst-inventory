@@ -16,6 +16,8 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     console.log("Environment variables:", {
       INVENTORY_TABLE: process.env.INVENTORY_TABLE,
       PRODUCTS_TABLE: process.env.PRODUCTS_TABLE,
+      ALERTS_TABLE: process.env.ALERTS_TABLE,
+      INVENTORY_HISTORY_TABLE: process.env.INVENTORY_HISTORY_TABLE,
       NODE_ENV: process.env.NODE_ENV,
     });
 
@@ -50,19 +52,59 @@ export const handler: APIGatewayProxyHandler = async (event) => {
       return await dynamoDb.send(new ScanCommand(productsParams));
     });
 
+    // Initialize alert items and history items as empty arrays
+    let alertItems = [];
+    let historyItems = [];
+
+    // Get all alerts if the alerts table is available
+    if (process.env.ALERTS_TABLE) {
+      const alertsParams = {
+        TableName: process.env.ALERTS_TABLE,
+        Limit: 100,
+      };
+
+      console.log("Scanning alerts table:", alertsParams);
+      const alertsResult = await handleDynamoError(async () => {
+        return await dynamoDb.send(new ScanCommand(alertsParams));
+      });
+      
+      alertItems = alertsResult.Items || [];
+    }
+
+    // Get inventory history if the history table is available
+    if (process.env.INVENTORY_HISTORY_TABLE) {
+      const historyParams = {
+        TableName: process.env.INVENTORY_HISTORY_TABLE,
+        Limit: 100,
+      };
+
+      console.log("Scanning inventory history table:", historyParams);
+      const historyResult = await handleDynamoError(async () => {
+        return await dynamoDb.send(new ScanCommand(historyParams));
+      });
+      
+      historyItems = historyResult.Items || [];
+    }
+
     // Return combined data for debugging
     return createResponse(200, {
       tables: {
         inventory: process.env.INVENTORY_TABLE,
         products: process.env.PRODUCTS_TABLE,
+        alerts: process.env.ALERTS_TABLE || "Not configured",
+        history: process.env.INVENTORY_HISTORY_TABLE || "Not configured",
       },
       counts: {
         inventory: inventoryResult.Items?.length || 0,
         products: productsResult.Items?.length || 0,
+        alerts: alertItems.length || 0,
+        history: historyItems.length || 0,
       },
       items: {
         inventory: inventoryResult.Items || [],
         products: productsResult.Items || [],
+        alerts: alertItems || [],
+        history: historyItems || [],
       },
     });
   } catch (error) {

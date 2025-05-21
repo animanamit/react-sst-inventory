@@ -178,11 +178,12 @@ export default $config({
     });
 
     api.route("POST /inventory", {
-      handler: "packages/functions/src/inventory/updateStock.handler",
+      handler: "packages/functions/src/inventory/adjustStock.handler",
       // link: [inventoryTable, inventoryHistoryTable, alertsTable, alertQueue],
-      link: [inventoryTable, inventoryHistoryTable, alertsTable],
+      link: [inventoryTable, inventoryHistoryTable, alertsTable, productsTable],
       environment: {
         INVENTORY_TABLE: inventoryTable.name,
+        PRODUCTS_TABLE: productsTable.name,
         INVENTORY_HISTORY_TABLE: inventoryHistoryTable.name,
         ALERTS_TABLE: alertsTable.name,
       },
@@ -199,10 +200,12 @@ export default $config({
     // Debug endpoint to verify database contents
     api.route("GET /debug", {
       handler: "packages/functions/src/inventory/debug.handler",
-      link: [productsTable, inventoryTable],
+      link: [productsTable, inventoryTable, inventoryHistoryTable, alertsTable],
       environment: {
         PRODUCTS_TABLE: productsTable.name,
         INVENTORY_TABLE: inventoryTable.name,
+        INVENTORY_HISTORY_TABLE: inventoryHistoryTable.name,
+        ALERTS_TABLE: alertsTable.name,
       },
     });
 
@@ -228,6 +231,24 @@ export default $config({
       link: [alertsTable],
       environment: {
         ALERTS_TABLE: alertsTable.name,
+      },
+    });
+    
+    api.route("POST /alerts", {
+      handler: "packages/functions/src/alerts/create.handler",
+      link: [alertsTable],
+      environment: {
+        ALERTS_TABLE: alertsTable.name,
+      },
+    });
+    
+    api.route("POST /alerts/check-all", {
+      handler: "packages/functions/src/alerts/check-all.handler",
+      link: [alertsTable, inventoryTable, productsTable],
+      environment: {
+        ALERTS_TABLE: alertsTable.name,
+        INVENTORY_TABLE: inventoryTable.name,
+        PRODUCTS_TABLE: productsTable.name,
       },
     });
 
