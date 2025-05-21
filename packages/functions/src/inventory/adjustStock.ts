@@ -9,8 +9,10 @@ import {
 import {
   StockAdjustmentSchema,
   InventoryHistorySchema,
-  AlertSchema
+  AlertSchema,
+  AlertMessageSchema
 } from "../utils/types";
+import { sendSqsMessage, handleSqsError } from "../utils/sqs";
 import { ulid } from "ulid";
 
 export const handler: APIGatewayProxyHandler = async (event) => {
@@ -161,7 +163,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
 };
 
 /**
- * Check if an inventory item needs an alert and create one if necessary
+ * Check if an inventory item needs an alert and send to SQS queue for processing
  */
 async function checkAndCreateAlert(item: {
   productId: string;
@@ -175,8 +177,59 @@ async function checkAndCreateAlert(item: {
       return null;
     }
 
+    // Check if SQS queue URL is configured
+    const queueUrl = process.env.ALERTS_QUEUE;
+    const useSqs = !!queueUrl;
+
     // Check if stock is below minimum threshold
     if (item.currentStock < item.minThreshold) {
+      // SQS implementation - send alert request to queue for processing
+      if (useSqs) {
+        try {
+          // Create alert message for SQS
+          const alertMessage = AlertMessageSchema.parse({
+            type: "ALERT_REQUEST",
+            payload: {
+              productId: item.productId,
+              locationId: item.locationId,
+              currentStock: item.currentStock,
+              minThreshold: item.minThreshold,
+              alertType: "LOW",
+              timestamp: Date.now(),
+              requestId: ulid(),
+            }
+          });
+
+          // Send to SQS queue
+          await handleSqsError(async () => {
+            return sendSqsMessage(
+              queueUrl,
+              alertMessage,
+              "inventory-alerts", // Message group ID
+              `${item.productId}-${item.locationId}` // Deduplication ID
+            );
+          });
+
+          // Return a placeholder for the alert (will be created by the SQS consumer)
+          return {
+            alertId: "pending",
+            productId: item.productId,
+            locationId: item.locationId,
+            alertType: "LOW",
+            threshold: item.minThreshold,
+            currentStock: item.currentStock,
+            status: "PROCESSING",
+            createdAt: Date.now(),
+            sqsMessage: "Alert request sent to queue for processing"
+          };
+        } catch (sqsError) {
+          console.error("Error sending alert to SQS:", sqsError);
+          // Fall back to direct creation if SQS fails
+          console.warn("Falling back to direct alert creation due to SQS error");
+        }
+      }
+
+      // Direct creation (fallback or when SQS is not configured)
       // Check if there's already an active alert for this product and location
       const existingAlertsParams = {
         TableName: process.env.ALERTS_TABLE,

@@ -5,6 +5,10 @@
 
 declare module "sst" {
   export interface Resource {
+    "AlertsQueue": {
+      "type": "sst.aws.Queue"
+      "url": string
+    }
     "AlertsTable": {
       "name": string
       "type": "sst.aws.Dynamo"

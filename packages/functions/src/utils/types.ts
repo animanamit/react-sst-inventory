@@ -84,6 +84,44 @@ export const AlertSchema = z.object({
   createdAt: z.number().default(() => Date.now()),
   acknowledgedAt: z.number().optional(),
   acknowledgedBy: z.string().optional(),
+  metadata: z.record(z.union([z.string(), z.number(), z.boolean()])).optional(),
 });
 
 export type Alert = z.infer<typeof AlertSchema>;
+
+// SQS Message schemas
+export const AlertMessageSchema = z.object({
+  type: z.literal("ALERT_REQUEST"),
+  payload: z.object({
+    productId: z.string(),
+    locationId: z.string().default("main"),
+    currentStock: z.number().int(),
+    minThreshold: z.number().int(),
+    alertType: z.enum(["LOW", "HIGH"]).default("LOW"),
+    timestamp: z.number().default(() => Date.now()),
+    requestId: z.string().default(() => ulid()),
+  }),
+});
+
+export type AlertMessage = z.infer<typeof AlertMessageSchema>;
+
+export const EmailNotificationSchema = z.object({
+  type: z.literal("EMAIL_NOTIFICATION"),
+  payload: z.object({
+    alertId: z.string(),
+    recipient: z.string().email(),
+    subject: z.string(),
+    message: z.string(),
+    timestamp: z.number().default(() => Date.now()),
+  }),
+});
+
+export type EmailNotification = z.infer<typeof EmailNotificationSchema>;
+
+// Union type for all SQS message types
+export const SQSMessageSchema = z.discriminatedUnion("type", [
+  AlertMessageSchema,
+  EmailNotificationSchema,
+]);
+
+export type SQSMessage = z.infer<typeof SQSMessageSchema>;

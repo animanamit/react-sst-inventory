@@ -85,18 +85,28 @@ export default $config({
     });
 
     // Set up the SQS alert queue
-    // const alertQueue = new sst.aws.Queue("AlertsQueue", {
-    //   consumer: {
-    //     function: {
-    //       handler: "packages/functions/src/alerts/processAlerts.handler",
-    //       timeout: "60 seconds",
-    //       environment: {
-    //         ALERTS_TABLE: alertsTable.name,
-    //       },
-    //       bind: [alertsTable],
-    //     },
-    //   },
-    // });
+    const alertQueue = new sst.aws.Queue("AlertsQueue", {
+      consumer: {
+        function: {
+          handler: "packages/functions/src/alerts/process-alerts.handler",
+          timeout: "60 seconds",
+          environment: {
+            ALERTS_TABLE: alertsTable.name,
+            PRODUCTS_TABLE: productsTable.name,
+          },
+          bind: [alertsTable, productsTable],
+        },
+      },
+      // Configure SQS FIFO queue for exactly-once processing
+      cdk: {
+        queue: {
+          fifo: true,
+          contentBasedDeduplication: true,
+          deliveryDelay: 0,
+          retentionPeriod: 1209600, // 14 days (maximum)
+        },
+      },
+    });
 
     const api = new sst.aws.ApiGatewayV2("InventoryApi", {
       cors: {
@@ -179,13 +189,13 @@ export default $config({
 
     api.route("POST /inventory", {
       handler: "packages/functions/src/inventory/adjustStock.handler",
-      // link: [inventoryTable, inventoryHistoryTable, alertsTable, alertQueue],
-      link: [inventoryTable, inventoryHistoryTable, alertsTable, productsTable],
+      link: [inventoryTable, inventoryHistoryTable, alertsTable, productsTable, alertQueue],
       environment: {
         INVENTORY_TABLE: inventoryTable.name,
         PRODUCTS_TABLE: productsTable.name,
         INVENTORY_HISTORY_TABLE: inventoryHistoryTable.name,
         ALERTS_TABLE: alertsTable.name,
+        ALERTS_QUEUE: alertQueue.queueUrl,
       },
     });
 
