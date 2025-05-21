@@ -1,16 +1,16 @@
 import { APIGatewayProxyHandler } from "aws-lambda";
 import { PutCommand, GetCommand } from "@aws-sdk/lib-dynamodb";
-import { 
-  dynamoDb, 
-  handleDynamoError, 
-  createResponse, 
-  createErrorResponse 
+import {
+  dynamoDb,
+  handleDynamoError,
+  createResponse,
+  createErrorResponse,
 } from "../utils/dynamodb";
-import { 
-  InventoryItemSchema, 
+import {
+  InventorySchema,
   StockAdjustmentSchema,
-  InventoryItem,
-  AlertSchema
+  Inventory,
+  AlertSchema,
 } from "../utils/types";
 import { ulid } from "ulid";
 
@@ -21,18 +21,18 @@ export const handler: APIGatewayProxyHandler = async (event) => {
       INVENTORY_TABLE: process.env.INVENTORY_TABLE,
       NODE_ENV: process.env.NODE_ENV,
       ALERTS_TABLE: process.env.ALERTS_TABLE,
-      INVENTORY_HISTORY_TABLE: process.env.INVENTORY_HISTORY_TABLE
+      INVENTORY_HISTORY_TABLE: process.env.INVENTORY_HISTORY_TABLE,
     });
-    
+
     // Debug event information
     console.log("Request event:", {
       path: event.path,
       method: event.httpMethod,
       headers: event.headers,
       queryStringParameters: event.queryStringParameters,
-      body: event.body ? JSON.parse(event.body) : null
+      body: event.body ? JSON.parse(event.body) : null,
     });
-    
+
     // Check if request has a body
     if (!event.body) {
       return createErrorResponse(400, "Missing request body");
@@ -40,23 +40,26 @@ export const handler: APIGatewayProxyHandler = async (event) => {
 
     // Parse request body
     const body = JSON.parse(event.body);
-    
+
     console.log("Parsed request body:", body);
 
     // Validate DynamoDB table environment variables
     if (!process.env.INVENTORY_TABLE) {
-      return createErrorResponse(500, "INVENTORY_TABLE environment variable is not set");
+      return createErrorResponse(
+        500,
+        "INVENTORY_TABLE environment variable is not set"
+      );
     }
 
     // Determine which operation to perform based on the request
     // If we're creating/updating an item
     if (body.name !== undefined) {
-      return await handleInventoryItemUpdate(body);
-    } 
+      return await handleInventoryUpdate(body);
+    }
     // If we're adjusting stock
     else if (body.changeAmount !== undefined) {
       return await handleStockAdjustment(body);
-    } 
+    }
     // Invalid request
     else {
       return createErrorResponse(400, "Invalid request format");
@@ -73,21 +76,24 @@ export const handler: APIGatewayProxyHandler = async (event) => {
 /**
  * Handle creating or updating an inventory item
  */
-async function handleInventoryItemUpdate(data: any) {
+async function handleInventoryUpdate(data: any) {
   try {
     console.log("Starting inventory item update with data:", data);
     console.log("Using table:", process.env.INVENTORY_TABLE);
-    
+
     // Validate input with zod
     let validatedData;
     try {
-      validatedData = InventoryItemSchema.parse(data);
+      validatedData = InventorySchema.parse(data);
       console.log("Data validation successful:", validatedData);
     } catch (validationError) {
       console.error("Validation error:", validationError);
-      return createErrorResponse(400, `Validation error: ${(validationError as Error).message}`);
+      return createErrorResponse(
+        400,
+        `Validation error: ${(validationError as Error).message}`
+      );
     }
-    
+
     // Check if the item already exists
     if (!validatedData.productId) {
       // Generate a new ID for new items
@@ -102,23 +108,31 @@ async function handleInventoryItemUpdate(data: any) {
           locationId: validatedData.locationId || "main",
         },
       };
-      
-      console.log("Checking for existing item with params:", existingItemParams);
+
+      console.log(
+        "Checking for existing item with params:",
+        existingItemParams
+      );
 
       try {
         const result = await dynamoDb.send(new GetCommand(existingItemParams));
-        const existingItem = result.Item as InventoryItem | undefined;
-        
+        const existingItem = result.Item as Inventory | undefined;
+
         console.log("Existing item query result:", existingItem);
 
         if (!existingItem) {
           // If updating non-existent item, ensure we have all required fields
-          console.log("Item not found, ensuring all required fields are present");
-          InventoryItemSchema.parse(validatedData);
+          console.log(
+            "Item not found, ensuring all required fields are present"
+          );
+          InventorySchema.parse(validatedData);
         }
       } catch (dbError) {
         console.error("Database error when checking existing item:", dbError);
-        return createErrorResponse(500, `Database error: ${(dbError as Error).message}`);
+        return createErrorResponse(
+          500,
+          `Database error: ${(dbError as Error).message}`
+        );
       }
     }
 
@@ -130,7 +144,7 @@ async function handleInventoryItemUpdate(data: any) {
         updatedAt: Date.now(),
       },
     };
-    
+
     console.log("Attempting to write item with params:", params);
 
     try {
@@ -138,7 +152,10 @@ async function handleInventoryItemUpdate(data: any) {
       console.log("Item successfully written to database");
     } catch (putError) {
       console.error("Error writing to database:", putError);
-      return createErrorResponse(500, `Database write error: ${(putError as Error).message}`);
+      return createErrorResponse(
+        500,
+        `Database write error: ${(putError as Error).message}`
+      );
     }
 
     // Check if we need to create an alert
@@ -149,9 +166,9 @@ async function handleInventoryItemUpdate(data: any) {
       // Continue even if alert creation fails
     }
 
-    return createResponse(200, { 
-      message: "Inventory item updated successfully", 
-      item: validatedData 
+    return createResponse(200, {
+      message: "Inventory item updated successfully",
+      item: validatedData,
     });
   } catch (error) {
     console.error("Unhandled error in inventory update:", error);
@@ -169,7 +186,7 @@ async function handleStockAdjustment(data: any) {
   try {
     // Validate the adjustment data
     const adjustmentData = StockAdjustmentSchema.parse(data);
-    
+
     // Get the current inventory item
     const params = {
       TableName: process.env.INVENTORY_TABLE!,
@@ -181,7 +198,7 @@ async function handleStockAdjustment(data: any) {
 
     const existingItem = await handleDynamoError(async () => {
       const result = await dynamoDb.send(new GetCommand(params));
-      return result.Item as InventoryItem | undefined;
+      return result.Item as Inventory | undefined;
     });
 
     if (!existingItem) {
@@ -189,11 +206,15 @@ async function handleStockAdjustment(data: any) {
     }
 
     // Calculate new stock level
-    const newStockLevel = existingItem.currentStock + adjustmentData.changeAmount;
-    
+    const newStockLevel =
+      existingItem.currentStock + adjustmentData.changeAmount;
+
     // Ensure stock doesn't go negative
     if (newStockLevel < 0) {
-      return createErrorResponse(400, "Stock adjustment would result in negative inventory");
+      return createErrorResponse(
+        400,
+        "Stock adjustment would result in negative inventory"
+      );
     }
 
     // Update the inventory with new stock level
@@ -207,7 +228,7 @@ async function handleStockAdjustment(data: any) {
     };
 
     await handleDynamoError(() => dynamoDb.send(new PutCommand(updateParams)));
-    
+
     // Record this adjustment in history (if history table exists)
     if (process.env.INVENTORY_HISTORY_TABLE) {
       const historyParams = {
@@ -223,7 +244,9 @@ async function handleStockAdjustment(data: any) {
         },
       };
 
-      await handleDynamoError(() => dynamoDb.send(new PutCommand(historyParams)));
+      await handleDynamoError(() =>
+        dynamoDb.send(new PutCommand(historyParams))
+      );
     }
 
     // Check if we need to create an alert after the stock adjustment
@@ -232,12 +255,12 @@ async function handleStockAdjustment(data: any) {
       currentStock: newStockLevel,
     });
 
-    return createResponse(200, { 
+    return createResponse(200, {
       message: "Stock adjusted successfully",
       item: {
         ...existingItem,
         currentStock: newStockLevel,
-      }
+      },
     });
   } catch (error) {
     console.error("Error adjusting stock:", error);
@@ -251,23 +274,49 @@ async function handleStockAdjustment(data: any) {
 /**
  * Check if an inventory item needs an alert and create one if necessary
  */
-async function checkAndCreateAlert(item: InventoryItem) {
+async function checkAndCreateAlert(item: Inventory & { minThreshold?: number }) {
   try {
     // If alerts table is not configured, skip
     if (!process.env.ALERTS_TABLE) {
       return;
     }
 
+    // If minThreshold is not provided in the item, we need to fetch it from the product
+    if (!item.minThreshold && process.env.PRODUCTS_TABLE) {
+      try {
+        const productParams = {
+          TableName: process.env.PRODUCTS_TABLE,
+          Key: {
+            productId: item.productId,
+          },
+        };
+        
+        const result = await dynamoDb.send(new GetCommand(productParams));
+        if (result.Item) {
+          // @ts-ignore - we know the product has minThreshold
+          item.minThreshold = result.Item.minThreshold;
+        }
+      } catch (error) {
+        console.error("Error fetching product for threshold:", error);
+      }
+    }
+
+    // If we still don't have a threshold, we can't create an alert
+    if (!item.minThreshold) {
+      return;
+    }
+
     let alertType = null;
     let threshold = 0;
-    
+
     // Check if stock is below minimum threshold
     if (item.currentStock < item.minThreshold) {
       alertType = "LOW";
       threshold = item.minThreshold;
     }
     // We could also add "HIGH" alerts if stock exceeds a maximum threshold
-    // if (item.currentStock > item.maxThreshold) {
+    // Only enable this if maxThreshold is defined on the item
+    // if (item.maxThreshold && item.currentStock > item.maxThreshold) {
     //   alertType = "HIGH";
     //   threshold = item.maxThreshold;
     // }
@@ -293,13 +342,15 @@ async function checkAndCreateAlert(item: InventoryItem) {
     };
 
     await handleDynamoError(() => dynamoDb.send(new PutCommand(params)));
-    
+
     // You could also send the alert to an SQS queue for processing
     // if (process.env.ALERTS_QUEUE_URL) {
     //   // Send to SQS...
     // }
 
-    console.log(`Created ${alertType} stock alert for product ${item.productId}`);
+    console.log(
+      `Created ${alertType} stock alert for product ${item.productId}`
+    );
   } catch (error) {
     // Log but don't fail the operation if alert creation fails
     console.error("Error creating alert:", error);

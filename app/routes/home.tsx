@@ -27,16 +27,16 @@ import {
   CardHeader,
   CardTitle,
   CardContent,
-  CardFooter,
   CardDescription,
 } from "~/components/ui/card";
 import { Input } from "~/components/ui/input";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "~/components/ui/tabs";
 import { useState, useEffect } from "react";
 import { formatDistanceToNow } from "date-fns";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "~/lib/api";
 import type { Route } from ".react-router/types/app/routes/+types/home";
+import { toast } from "sonner";
 
 const AlertsPanel = () => {
   const [activeTab, setActiveTab] = useState("active");
@@ -148,52 +148,110 @@ const AlertsPanel = () => {
 };
 
 const InventoryTable = () => {
-  // Define the shape of the inventory data we expect from the API
-  interface APIInventoryItem {
+  // For managing the search input
+  const [searchQuery, setSearchQuery] = useState("");
+
+  // Query client for invalidating queries after mutations
+  const queryClient = useQueryClient();
+
+  // Types for the data from our API
+  interface ProductWithInventory {
     productId: string;
     name: string;
     description: string;
-    currentStock: number;
-    minThreshold: number;
+    category?: string;
+    sku?: string;
     imageUrl?: string;
-    // other fields we don't need for display
+    minThreshold: number;
+    inventory?: Array<{
+      productId: string;
+      locationId: string;
+      currentStock: number;
+    }>;
+    totalStock: number;
   }
 
-  // Type for the frontend inventory items
-  type FrontendInventoryItem = typeof mockInventoryData[0];
-
-  // Fetch inventory data from API
+  // Fetch products data from API with inventory information included
   const {
-    data: apiInventoryData = [] as FrontendInventoryItem[],
+    data: productsData = [],
     isLoading,
     isError,
+    refetch,
   } = useQuery({
-    queryKey: ["inventory"],
+    queryKey: ["products"],
     queryFn: async () => {
       try {
-        const data = await api.inventory.getAll() as APIInventoryItem[];
-        // Transform API data to match the frontend format
-        return data.map(item => ({
-          id: item.productId,
-          name: item.name,
-          description: item.description,
-          quantity: item.currentStock,
-          threshold: item.minThreshold,
-          imageUrl: item.imageUrl || "",
-        })) as FrontendInventoryItem[];
+        // If we get a 404, the API isn't deployed yet - try seeding the db first
+        try {
+          const data = await api.products.getAll();
+          return data as ProductWithInventory[];
+        } catch (error: any) {
+          // If API error is 404, try seeding mock data
+          if (error.status === 404 && process.env.NODE_ENV === "development") {
+            console.log(
+              "Products API not found, attempting to seed mock data..."
+            );
+            await api.products.seedMockData();
+            const data = await api.products.getAll();
+            return data as ProductWithInventory[];
+          }
+          throw error;
+        }
       } catch (error) {
-        console.error("Error fetching inventory:", error);
-        return [] as FrontendInventoryItem[];
+        console.error("Error fetching products:", error);
+        // Return mock data converted to the right format for development
+        if (process.env.NODE_ENV === "development") {
+          return mockInventoryData.map((item) => ({
+            productId: item.id,
+            name: item.name,
+            description: item.description,
+            minThreshold: item.threshold,
+            imageUrl: item.imageUrl,
+            totalStock: item.quantity,
+          })) as ProductWithInventory[];
+        }
+        return [] as ProductWithInventory[];
       }
     },
   });
 
-  // Combine API data with mock data for development
-  const combinedInventoryData: FrontendInventoryItem[] = [...apiInventoryData, ...mockInventoryData];
+  // Mutation for adjusting stock levels
+  const adjustStockMutation = useMutation({
+    mutationFn: (variables: { productId: string; changeAmount: number }) => {
+      return api.inventory.adjustStock({
+        productId: variables.productId,
+        changeAmount: variables.changeAmount,
+        reason:
+          variables.changeAmount > 0
+            ? "Stock increased via dashboard"
+            : "Stock decreased via dashboard",
+      });
+    },
+    onSuccess: () => {
+      // Invalidate the products query to refetch data
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+    },
+    onError: (error) => {
+      console.error("Error adjusting stock:", error);
+      toast.error("Failed to adjust stock. Please try again.");
+    },
+  });
 
-  // Remove duplicates (if items with same id exist in both sources)
-  const uniqueInventoryData = combinedInventoryData.filter(
-    (item, index, self) => index === self.findIndex((t) => t.id === item.id)
+  // Handler for stock adjustment buttons
+  const handleStockAdjustment = (productId: string, changeAmount: number) => {
+    adjustStockMutation.mutate({ productId, changeAmount });
+  };
+
+  // Filter products based on search query
+  const filteredProducts = productsData.filter(
+    (product) =>
+      !searchQuery ||
+      product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      product.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (product.category &&
+        product.category.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (product.sku &&
+        product.sku.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
   return (
@@ -202,12 +260,57 @@ const InventoryTable = () => {
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div className="flex items-center gap-2">
             <CardTitle>Inventory Items</CardTitle>
-            <Button variant="default" size="sm" asChild>
-              <a href="/inventory-add">
-                <PlusIcon className="h-4 w-4 mr-1" />
-                Add Item
-              </a>
-            </Button>
+            <div className="flex space-x-2">
+              <Button variant="default" size="sm" asChild>
+                <a href="/product-add">
+                  <PlusIcon className="h-4 w-4 mr-1" />
+                  Add Product
+                </a>
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  toast.promise(
+                    api.products.seedMockData().then(() => refetch()),
+                    {
+                      loading: "Seeding database with mock data...",
+                      success: "Database seeded successfully!",
+                      error: "Failed to seed database. Please try again.",
+                    }
+                  );
+                }}
+                disabled={isLoading || adjustStockMutation.isPending}
+              >
+                {isLoading ? (
+                  <span className="flex items-center">
+                    <svg
+                      className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      ></circle>
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      ></path>
+                    </svg>
+                    Loading...
+                  </span>
+                ) : (
+                  "Seed Database"
+                )}
+              </Button>
+            </div>
           </div>
           <div className="relative w-full md:w-64">
             <SearchIcon className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
@@ -215,8 +318,8 @@ const InventoryTable = () => {
               type="search"
               placeholder="Search inventory..."
               className="pl-8"
-              // value={searchQuery}
-              // onChange={(e) => setSearchQuery(e.target.value)}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
         </div>
@@ -245,35 +348,30 @@ const InventoryTable = () => {
                   colSpan={5}
                   className="text-center py-8 text-red-600"
                 >
-                  Error loading inventory data. Showing mock data only.
+                  Error loading products. Using mock data.
                 </TableCell>
               </TableRow>
-            ) : uniqueInventoryData.length === 0 ? (
+            ) : filteredProducts.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={5} className="text-center py-8">
-                  No inventory items found. Add some using the "Add Item"
-                  button.
+                  {searchQuery
+                    ? "No products match your search criteria."
+                    : "No products found. Add some using the 'Add Item' button or seed mock data."}
                 </TableCell>
               </TableRow>
             ) : (
-              uniqueInventoryData.map((item) => (
-                <TableRow key={item.id}>
+              filteredProducts.map((product) => (
+                <TableRow key={product.productId}>
                   <TableCell>
                     <div className="flex items-center gap-3">
-                      <div className="h-12 w-12 rounded-md overflow-hidden bg-gray-100 flex-shrink-0">
-                        <img
-                          // src={item.imageUrl || "/placeholder.svg"}
-                          // alt={item.name}
-                          className="h-full w-full object-cover"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).src =
-                              "/diverse-products-still-life.png";
-                          }}
-                        />
-                      </div>
+                      <div className="h-12 w-12 rounded-md overflow-hidden bg-gray-100 flex-shrink-0"></div>
                       <div>
-                        <div className="font-medium">{item.name}</div>
-                        {/* <div className="text-sm text-gray-500">{item.sku}</div> */}
+                        <div className="font-medium">{product.name}</div>
+                        {product.sku && (
+                          <div className="text-sm text-gray-500">
+                            {product.sku}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </TableCell>
@@ -283,38 +381,99 @@ const InventoryTable = () => {
                         variant="outline"
                         size="icon"
                         className="h-8 w-8"
-                        // onClick={() => handleQuantityChange(item.id, -1)}
+                        onClick={() =>
+                          handleStockAdjustment(product.productId, -1)
+                        }
+                        disabled={
+                          adjustStockMutation.isPending ||
+                          product.totalStock <= 0
+                        }
                       >
-                        <MinusIcon className="h-4 w-4" />
+                        {adjustStockMutation.isPending &&
+                        adjustStockMutation.variables?.productId ===
+                          product.productId &&
+                        adjustStockMutation.variables?.changeAmount < 0 ? (
+                          <svg
+                            className="animate-spin h-4 w-4"
+                            xmlns="http://www.w3.org/2000/svg"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                          >
+                            <circle
+                              className="opacity-25"
+                              cx="12"
+                              cy="12"
+                              r="10"
+                              stroke="currentColor"
+                              strokeWidth="4"
+                            ></circle>
+                            <path
+                              className="opacity-75"
+                              fill="currentColor"
+                              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                            ></path>
+                          </svg>
+                        ) : (
+                          <MinusIcon className="h-4 w-4" />
+                        )}
                       </Button>
                       <span className="w-12 text-center font-medium">
-                        {item.quantity}
+                        {product.totalStock}
                       </span>
                       <Button
                         variant="outline"
                         size="icon"
                         className="h-8 w-8"
-                        // onClick={() => handleQuantityChange(item.id, 1)}
+                        onClick={() =>
+                          handleStockAdjustment(product.productId, 1)
+                        }
+                        disabled={adjustStockMutation.isPending}
                       >
-                        <PlusIcon className="h-4 w-4" />
+                        {adjustStockMutation.isPending &&
+                        adjustStockMutation.variables?.productId ===
+                          product.productId &&
+                        adjustStockMutation.variables?.changeAmount > 0 ? (
+                          <svg
+                            className="animate-spin h-4 w-4"
+                            xmlns="http://www.w3.org/2000/svg"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                          >
+                            <circle
+                              className="opacity-25"
+                              cx="12"
+                              cy="12"
+                              r="10"
+                              stroke="currentColor"
+                              strokeWidth="4"
+                            ></circle>
+                            <path
+                              className="opacity-75"
+                              fill="currentColor"
+                              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                            ></path>
+                          </svg>
+                        ) : (
+                          <PlusIcon className="h-4 w-4" />
+                        )}
                       </Button>
                     </div>
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
-                      <span>{item.threshold}</span>
+                      <span>{product.minThreshold}</span>
                       <Button
                         variant="ghost"
                         size="icon"
                         className="h-8 w-8"
-                        // onClick={() => openThresholdModal(item)}
+                        // onClick={() => openThresholdModal(product)}
                       >
                         <GearIcon className="h-4 w-4" />
                       </Button>
                     </div>
                   </TableCell>
                   <TableCell>
-                    {item.quantity <= item.threshold ? (
+                    {product.totalStock <= product.minThreshold ? (
                       <Badge
                         variant="outline"
                         className="bg-amber-50 text-amber-700 border-amber-200 flex items-center gap-1"
@@ -335,7 +494,7 @@ const InventoryTable = () => {
                     <Button
                       variant="outline"
                       size="sm"
-                      // onClick={() => openThresholdModal(item)}
+                      // onClick={() => openThresholdModal(product)}
                     >
                       Set Threshold
                     </Button>
@@ -350,26 +509,7 @@ const InventoryTable = () => {
   );
 };
 
-const ProductDisplay = () => {
-  return (
-    <div>
-      <h1>Product Display</h1>
-      <p>List of products will be displayed here.</p>
-      <ul>
-        {mockInventoryData.map((item) => (
-          <li key={item.id}>
-            <h2>{item.name}</h2>
-            <p>{item.description}</p>
-            {/* <img src={item.imageUrl} alt={item.name} /> */}
-            <p>Quantity: {item.quantity}</p>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-};
-
-const ProductPage = () => {
+const HomePage = () => {
   return (
     <div>
       <div className="p-6">
@@ -381,11 +521,12 @@ const ProductPage = () => {
     </div>
   );
 };
-export default ProductPage;
+
+export default HomePage;
 
 export function meta({}: Route.MetaArgs) {
   return [
     { title: "Inventory Tracking" },
-    { name: "description", content: "Inventory Tracking MVP" },
+    { name: "description", content: "Inventory Tracking System" },
   ];
 }

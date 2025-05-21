@@ -100,18 +100,61 @@ const fetchWithErrorHandling = async <T>(
  */
 export const api = {
   /**
+   * Product-related API methods
+   */
+  products: {
+    /**
+     * Get all products with optional inventory data
+     */
+    getAll: async (category?: string) => {
+      const url = category 
+        ? `/products?category=${encodeURIComponent(category)}`
+        : "/products";
+      return fetchWithErrorHandling(url);
+    },
+
+    /**
+     * Get a specific product
+     */
+    getProduct: async (productId: string) => {
+      return fetchWithErrorHandling(`/products/${productId}`);
+    },
+
+    /**
+     * Create or update a product
+     */
+    createOrUpdate: async (product: any) => {
+      return fetchWithErrorHandling("/products", {
+        method: "POST",
+        body: product,
+      });
+    },
+
+    /**
+     * Seed the database with mock product data (development only)
+     */
+    seedMockData: async (options = { clearExisting: false }) => {
+      return fetchWithErrorHandling("/products/seed", {
+        method: "POST",
+        body: options,
+      });
+    },
+  },
+
+  /**
    * Inventory-related API methods
    */
   inventory: {
     /**
      * Get all inventory items
+     * @deprecated Use products.getAll() instead which includes inventory data
      */
     getAll: async () => {
       return fetchWithErrorHandling("/inventory");
     },
 
     /**
-     * Get a specific inventory item
+     * Get inventory for a specific product and location
      */
     getItem: async (productId: string, locationId: string = "main") => {
       return fetchWithErrorHandling(`/inventory/${productId}/${locationId}`);
@@ -119,6 +162,7 @@ export const api = {
 
     /**
      * Create or update an inventory item
+     * @deprecated Use products.createOrUpdate() and inventory.adjustStock() instead
      */
     createOrUpdate: async (inventoryItem: any) => {
       return fetchWithErrorHandling("/inventory", {

@@ -149,6 +149,15 @@ export default $config({
         BUCKET_NAME: bucket.name,
       },
     });
+    
+    api.route("POST /products/seed", {
+      handler: "packages/functions/src/products/seedMockData.handler",
+      link: [productsTable, inventoryTable],
+      environment: {
+        PRODUCTS_TABLE: productsTable.name,
+        INVENTORY_TABLE: inventoryTable.name,
+      },
+    });
 
     /* ───────────── Inventory ───────────── */
     api.route("GET /inventory", {
