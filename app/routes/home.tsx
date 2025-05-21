@@ -165,13 +165,13 @@ const InventoryTable = () => {
     imageUrl?: string;
     minThreshold: number;
   }
-  
+
   interface InventoryItem {
     productId: string;
     locationId: string;
     currentStock: number;
   }
-  
+
   interface ProductWithInventory extends Product {
     totalStock: number;
   }
@@ -181,7 +181,7 @@ const InventoryTable = () => {
     data: productsData = [] as Product[],
     isLoading: isLoadingProducts,
     isError: isProductsError,
-    refetch: refetchProducts
+    refetch: refetchProducts,
   } = useQuery({
     queryKey: ["products"],
     queryFn: async (): Promise<Product[]> => {
@@ -191,13 +191,13 @@ const InventoryTable = () => {
     staleTime: 30000,
     refetchOnWindowFocus: false,
   });
-  
+
   // Fetch inventory data separately
   const {
     data: inventoryData = [] as InventoryItem[],
     isLoading: isLoadingInventory,
     isError: isInventoryError,
-    refetch: refetchInventory
+    refetch: refetchInventory,
   } = useQuery({
     queryKey: ["inventory"],
     queryFn: async (): Promise<InventoryItem[]> => {
@@ -207,24 +207,26 @@ const InventoryTable = () => {
     staleTime: 30000,
     refetchOnWindowFocus: false,
   });
-  
+
   // Simple combine function to merge products with their inventory
-  const combinedData: ProductWithInventory[] = productsData.map((product: Product) => {
-    // Find matching inventory item
-    const inventory = inventoryData.find((item: InventoryItem) => 
-      item.productId === product.productId
-    );
-    
-    return {
-      ...product,
-      totalStock: inventory ? inventory.currentStock : 0
-    };
-  });
-  
+  const combinedData: ProductWithInventory[] = productsData.map(
+    (product: Product) => {
+      // Find matching inventory item
+      const inventory = inventoryData.find(
+        (item: InventoryItem) => item.productId === product.productId
+      );
+
+      return {
+        ...product,
+        totalStock: inventory ? inventory.currentStock : 0,
+      };
+    }
+  );
+
   // Simplified loading and error states
   const isLoading = isLoadingProducts || isLoadingInventory;
   const isError = isProductsError || isInventoryError;
-  
+
   // Refetch both data sources
   const refetch = () => {
     refetchProducts();
@@ -244,8 +246,12 @@ const InventoryTable = () => {
       });
     },
     onSuccess: () => {
-      // Invalidate the products query to refetch data
+      // Invalidate both products and inventory queries to refetch data
       queryClient.invalidateQueries({ queryKey: ["products"] });
+      queryClient.invalidateQueries({ queryKey: ["inventory"] });
+      
+      // Refetch data to ensure UI is updated
+      refetch();
     },
     onError: (error) => {
       console.error("Error adjusting stock:", error);
@@ -288,7 +294,7 @@ const InventoryTable = () => {
                 size="sm"
                 onClick={async () => {
                   await seedDatabase();
-                  
+
                   // Wait a moment to ensure DB operations are complete
                   setTimeout(() => {
                     // Simply refetch both data sources
@@ -478,14 +484,6 @@ const InventoryTable = () => {
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <span>{product.minThreshold}</span>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                        // onClick={() => openThresholdModal(product)}
-                      >
-                        <GearIcon className="h-4 w-4" />
-                      </Button>
                     </div>
                   </TableCell>
                   <TableCell>
