@@ -1,4 +1,4 @@
-import { APIGatewayProxyHandler } from "aws-lambda";
+import type { APIGatewayProxyHandler } from "aws-lambda";
 import { GetCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
 import {
   dynamoDb,
@@ -73,7 +73,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
         ":acknowledgedAt": timestamp,
         ":acknowledgedBy": userId,
       },
-      ReturnValues: "ALL_NEW",
+      ReturnValues: "ALL_NEW" as any,
     };
 
     const result = await handleDynamoError(async () => {

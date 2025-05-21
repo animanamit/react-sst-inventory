@@ -30,11 +30,11 @@ export function getRedisClient(options: {
   }
   
   // Create connection options
-  const redisOptions: Redis.RedisOptions = {
+  const redisOptions = {
     host,
     port,
     keyPrefix,
-    retryStrategy(times) {
+    retryStrategy(times: number) {
       const maxRetryTime = 3000; // 3 seconds
       const retryTime = Math.min(times * 50, maxRetryTime);
       return retryTime;

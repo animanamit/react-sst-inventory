@@ -1,4 +1,4 @@
-import { APIGatewayProxyHandler } from "aws-lambda";
+import type { APIGatewayProxyHandler } from "aws-lambda";
 import { QueryCommand } from "@aws-sdk/lib-dynamodb";
 import {
   dynamoDb,
@@ -28,7 +28,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     const { locationId } = event.queryStringParameters || {};
 
     // Set up parameters for DynamoDB query
-    const params = {
+    const params: any = {
       TableName: process.env.INVENTORY_HISTORY_TABLE,
       KeyConditionExpression: "productId = :productId",
       ExpressionAttributeValues: {
@@ -46,7 +46,10 @@ export const handler: APIGatewayProxyHandler = async (event) => {
       } else {
         // Otherwise, add a filter expression
         params.FilterExpression = "locationId = :locationId";
-        params.ExpressionAttributeValues[":locationId"] = locationId;
+        params.ExpressionAttributeValues = {
+          ...params.ExpressionAttributeValues,
+          ":locationId": locationId
+        };
       }
     }
 

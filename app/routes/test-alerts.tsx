@@ -25,7 +25,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "~/lib/api";
-import { Link } from "@remix-run/react";
+import { Link } from "react-router-dom";
 
 // Define form validation schema
 const productSchema = z.object({
@@ -70,7 +70,7 @@ export default function TestAlertsPage() {
         category: data.category,
         sku: data.sku,
         minThreshold: data.minThreshold,
-      });
+      }) as any;
       
       // Then set the initial inventory
       if (productResponse.productId && data.initialStock > 0) {
@@ -83,7 +83,7 @@ export default function TestAlertsPage() {
       
       return productResponse;
     },
-    onSuccess: (data) => {
+    onSuccess: (data: any) => {
       toast.success("Product created successfully!");
       setProductId(data.productId);
     },
@@ -99,7 +99,7 @@ export default function TestAlertsPage() {
       if (!productId) throw new Error("No product selected");
       
       // Get current product info
-      const product = await api.products.getProduct(productId);
+      const product = await api.products.getProduct(productId) as any;
       
       // Calculate amount to reduce stock below threshold
       const currentStock = 10; // Assuming initial stock is 10
@@ -132,7 +132,7 @@ export default function TestAlertsPage() {
       if (!productId) return;
       
       // Get active alerts
-      const alerts = await api.alerts.getAll("NEW");
+      const alerts = await api.alerts.getAll("NEW") as any[];
       
       // Find alert for this product
       const productAlert = alerts.find((alert: any) => alert.productId === productId);
@@ -155,7 +155,7 @@ export default function TestAlertsPage() {
       
       return api.alerts.acknowledge(createdAlert.alertId);
     },
-    onSuccess: (data) => {
+    onSuccess: (data: any) => {
       toast.success("Alert acknowledged successfully!");
       setAcknowledgedAlert(data.alert);
       

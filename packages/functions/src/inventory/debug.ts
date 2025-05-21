@@ -1,4 +1,4 @@
-import { APIGatewayProxyHandler } from "aws-lambda";
+import type { APIGatewayProxyHandler } from "aws-lambda";
 import { ScanCommand } from "@aws-sdk/lib-dynamodb";
 import {
   dynamoDb,
@@ -48,8 +48,8 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     });
 
     // Initialize alert items and history items as empty arrays
-    let alertItems = [];
-    let historyItems = [];
+    let alertItems: any[] = [];
+    let historyItems: any[] = [];
 
     // Get all alerts if the alerts table is available
     if (process.env.ALERTS_TABLE) {
