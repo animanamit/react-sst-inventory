@@ -209,98 +209,32 @@ export function InventoryTable({
   // Get filtered products using the deferred search query
   const filteredProducts = getFilteredProducts();
 
+  // Wire up the search box from the dashboard
+  useEffect(() => {
+    const searchInput = document.getElementById('inventory-search') as HTMLInputElement;
+    if (searchInput) {
+      const handler = (e: Event) => {
+        setSearchQuery((e.target as HTMLInputElement).value);
+      };
+      searchInput.addEventListener('input', handler);
+      searchInput.value = searchQuery; // Initialize value
+      
+      return () => {
+        searchInput.removeEventListener('input', handler);
+      };
+    }
+  }, []);
+
   return (
-    <Card className="shadow-sm">
-      <CardHeader className="pb-3">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <CardTitle>Inventory Items</CardTitle>
-            <div className="flex space-x-2">
-              <Button variant="default" size="sm" asChild>
-                <a href="/product-add">
-                  <PlusIcon className="h-4 w-4 mr-1" />
-                  Add Product
-                </a>
-              </Button>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={async () => {
-                  try {
-                    const data = (await api.debug.getDbState()) as any;
-
-                    // Check for alert conditions
-                    let alertConditions = 0;
-                    let existingAlerts = 0;
-                    let missingAlerts = 0;
-
-                    for (const product of data.items.products) {
-                      const inventory = data.items.inventory.find(
-                        (i: any) => i.productId === product.productId
-                      );
-                      if (inventory) {
-                        const currentStock = inventory.currentStock;
-                        const threshold = product.minThreshold;
-
-                        if (currentStock < threshold) {
-                          alertConditions++;
-                          // Check if an alert exists for this condition
-                          const existingAlert = data.items.alerts.find(
-                            (a: any) =>
-                              a.productId === product.productId &&
-                              a.status === "NEW"
-                          );
-
-                          if (existingAlert) {
-                            existingAlerts++;
-                          } else {
-                            missingAlerts++;
-                          }
-                        }
-                      }
-                    }
-
-                    toast.success("Database state printed to console", {
-                      duration: 5000,
-                      style: { background: "#10B981", color: "white" },
-                      description: `Found ${data.items.alerts.length} alerts (${existingAlerts} active, ${missingAlerts} missing conditions)`,
-                    });
-                  } catch (error) {
-                    console.error("Error getting database state:", error);
-                    toast.error("Failed to get database state");
-                  }
-                }}
-              >
-                Debug Tables
-              </Button>
-            </div>
-          </div>
-          <div className="relative w-full md:w-64">
-            <SearchIcon className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
-            <Input
-              type="search"
-              placeholder="Search inventory..."
-              className="pl-8"
-              value={searchQuery}
-              onChange={handleSearchChange}
-            />
-            {isSearchPending && (
-              <span className="absolute right-2.5 top-2.5 h-4 w-4 text-gray-500">
-                Filtering...
-              </span>
-            )}
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <Table>
+    <div>
+      <Table className="border-collapse">
           <TableHeader>
-            <TableRow>
-              <TableHead>Product</TableHead>
-              <TableHead>Current Stock</TableHead>
-              <TableHead>Threshold</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Actions</TableHead>
+            <TableRow className="border-b border-gray-200">
+              <TableHead className="py-4 font-semibold text-gray-700">Product</TableHead>
+              <TableHead className="py-4 font-semibold text-gray-700">Current Stock</TableHead>
+              <TableHead className="py-4 font-semibold text-gray-700">Threshold</TableHead>
+              <TableHead className="py-4 font-semibold text-gray-700">Status</TableHead>
+              <TableHead className="py-4 font-semibold text-gray-700">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -343,7 +277,6 @@ export function InventoryTable({
             )}
           </TableBody>
         </Table>
-      </CardContent>
-    </Card>
+    </div>
   );
 }

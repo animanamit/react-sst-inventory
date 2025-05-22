@@ -1,7 +1,6 @@
 import React from "react";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
-import { CardContent } from "~/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "~/components/ui/tabs";
 import { 
   ClockIcon, 
@@ -17,7 +16,7 @@ export function AlertsTabsContainer() {
   const { activeTab, setActiveTab } = useAlertsContext();
 
   return (
-    <CardContent>
+    <div>
       <Tabs defaultValue={activeTab} onValueChange={setActiveTab}>
         <TabsList className="grid w-full grid-cols-2 mb-4">
           <TabsTrigger value="active">Active Alerts</TabsTrigger>
@@ -32,7 +31,7 @@ export function AlertsTabsContainer() {
           <AlertsHistoryList />
         </TabsContent>
       </Tabs>
-    </CardContent>
+    </div>
   );
 }
 

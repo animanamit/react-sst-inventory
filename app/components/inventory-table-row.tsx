@@ -3,6 +3,7 @@ import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import { PlusIcon, MinusIcon } from "@radix-ui/react-icons";
 import { SetThresholdDialog } from "./set-threshold-dialog";
+import { SetInventoryDialog } from "./set-inventory-dialog";
 
 // Define the types for our component props
 export interface Product {
@@ -64,28 +65,28 @@ export const InventoryTableRow = React.memo<InventoryTableRowProps>(
       adjustingDirection === "increase";
 
     return (
-      <tr>
-        <td>
+      <tr className="hover:bg-gray-50 border-b border-gray-100">
+        <td className="py-5">
           <div className="flex items-center gap-3">
-            <div className="h-12 w-12 rounded-md overflow-hidden bg-gray-100 flex-shrink-0">
+            <div className="h-14 w-14 rounded-md overflow-hidden bg-gray-100 flex-shrink-0">
               {/* {product.imageUrl && (
               <img src={product.imageUrl} alt={product.name} className="h-full w-full object-cover" />
             )} */}
             </div>
             <div>
-              <div className="font-medium">{product.name}</div>
+              <div className="font-medium text-gray-800">{product.name}</div>
               {product.sku && (
-                <div className="text-sm text-gray-500">{product.sku}</div>
+                <div className="text-sm text-gray-500 mt-1">{product.sku}</div>
               )}
             </div>
           </div>
         </td>
-        <td>
+        <td className="py-5">
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
               size="icon"
-              className="h-8 w-8"
+              className="h-9 w-9"
               onClick={handleDecrease}
               disabled={isAdjusting || product.totalStock <= 0}
             >
@@ -114,13 +115,13 @@ export const InventoryTableRow = React.memo<InventoryTableRowProps>(
                 <MinusIcon className="h-4 w-4" />
               )}
             </Button>
-            <span className="w-12 text-center font-medium">
+            <span className="w-12 text-center font-medium text-gray-800 text-lg">
               {product.totalStock}
             </span>
             <Button
               variant="outline"
               size="icon"
-              className="h-8 w-8"
+              className="h-9 w-9"
               onClick={handleIncrease}
               disabled={isAdjusting}
             >
@@ -151,35 +152,41 @@ export const InventoryTableRow = React.memo<InventoryTableRowProps>(
             </Button>
           </div>
         </td>
-        <td>
+        <td className="py-5">
           <div className="flex items-center gap-2">
-            <span>{product.minThreshold}</span>
+            <span className="font-medium text-gray-800">{product.minThreshold}</span>
           </div>
         </td>
-        <td>
+        <td className="py-5">
           {product.totalStock <= product.minThreshold ? (
             <Badge
               variant="outline"
-              className="bg-amber-50 text-amber-700 border-amber-200 flex items-center gap-1"
+              className="bg-amber-50 text-amber-700 border-amber-200 flex items-center gap-1 px-3 py-1 text-sm"
             >
               Low Stock
             </Badge>
           ) : (
             <Badge
               variant="outline"
-              className="bg-green-50 text-green-700 border-green-200"
+              className="bg-green-50 text-green-700 border-green-200 px-3 py-1 text-sm"
             >
               In Stock
             </Badge>
           )}
         </td>
-        <td>
+        <td className="py-5">
           <div className="flex space-x-2">
             <SetThresholdDialog
               productId={product.productId}
               productName={product.name}
               currentThreshold={product.minThreshold}
               onThresholdUpdated={onThresholdUpdated}
+            />
+            <SetInventoryDialog
+              productId={product.productId}
+              productName={product.name}
+              currentStock={product.totalStock}
+              onInventoryUpdated={onThresholdUpdated}
             />
             <Button variant="outline" size="sm">
               History

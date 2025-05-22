@@ -274,11 +274,25 @@ export function AlertsPanel({ children, setRefetchFunctions }: AlertsPanelProps)
     setRefetchFunctions,
   };
 
+  // Listen for refresh event from dashboard
+  useEffect(() => {
+    const handleRefresh = () => {
+      refetchActive();
+      refetchHistory();
+      toast.info("Refreshing alerts...");
+    };
+    
+    window.addEventListener("refresh-alerts", handleRefresh);
+    return () => {
+      window.removeEventListener("refresh-alerts", handleRefresh);
+    };
+  }, [refetchActive, refetchHistory]);
+
   return (
     <AlertsContext.Provider value={contextValue}>
-      <Card className="shadow-sm">
+      <div>
         {children}
-      </Card>
+      </div>
     </AlertsContext.Provider>
   );
 }

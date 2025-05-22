@@ -10,13 +10,14 @@ import { seedDatabase } from "~/lib/seed-utils";
 import type { Route } from ".react-router/types/app/routes/+types/home";
 import { toast } from "sonner";
 
-// Import our new components
+// Import our components
 import { InventoryTable } from "~/components/inventory-table";
 import {
   AlertsPanel,
   AlertsHeader,
   AlertsTabsContainer,
 } from "~/components/alerts-panel";
+import { DashboardLayout } from "~/components/dashboard-layout";
 
 interface InventoryTableProps {
   alertRefetchFunctions: {
@@ -112,26 +113,48 @@ const HomePage = () => {
   const isLoading = isLoadingProducts || isLoadingInventory;
   const isError = isProductsError || isInventoryError;
 
+  // Get active alerts for the notification badge
+  const { data: activeAlerts = [] as any[] } = useQuery({
+    queryKey: ["alerts", "active"],
+    queryFn: async () => {
+      try {
+        const data = await api.alerts.getAll("NEW");
+        return data as any[];
+      } catch (error) {
+        console.error("Error fetching active alerts:", error);
+        return [] as any[];
+      }
+    },
+    staleTime: 10000,
+    refetchOnWindowFocus: true,
+  });
+
+  // Create the individual views
+  const inventoryView = (
+    <InventoryTable
+      products={combinedData}
+      isLoading={isLoading}
+      isError={isError}
+      refetchProducts={refetchProducts}
+      refetchInventory={refetchInventory}
+      alertRefetchFunctions={alertPanelRefetchFunctions}
+    />
+  );
+
+  const alertsView = (
+    <AlertsPanel setRefetchFunctions={setLocalAlertRefetchFunctions}>
+      <AlertsHeader />
+      <AlertsTabsContainer />
+    </AlertsPanel>
+  );
+
+  // Return the dashboard layout with both views
   return (
-    <div>
-      <div className="p-6">
-        <InventoryTable
-          products={combinedData}
-          isLoading={isLoading}
-          isError={isError}
-          refetchProducts={refetchProducts}
-          refetchInventory={refetchInventory}
-          alertRefetchFunctions={alertPanelRefetchFunctions}
-        />
-      </div>
-      <div className="p-6">
-        {/* Using our new compound component pattern */}
-        <AlertsPanel setRefetchFunctions={setLocalAlertRefetchFunctions}>
-          <AlertsHeader />
-          <AlertsTabsContainer />
-        </AlertsPanel>
-      </div>
-    </div>
+    <DashboardLayout
+      inventoryView={inventoryView}
+      alertsView={alertsView}
+      activeAlertsCount={activeAlerts.length}
+    />
   );
 };
 

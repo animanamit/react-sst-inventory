@@ -1,12 +1,5 @@
 import React from "react";
 import { Badge } from "~/components/ui/badge";
-import { Button } from "~/components/ui/button";
-import { 
-  CardHeader, 
-  CardTitle, 
-  CardDescription 
-} from "~/components/ui/card";
-import { toast } from "sonner";
 import { useAlertsContext } from "./context";
 
 interface HeaderProps {
@@ -29,11 +22,11 @@ export function AlertsHeader({
   } = useAlertsContext();
 
   return (
-    <CardHeader>
+    <div className="mb-6">
       <div className="flex items-center justify-between">
         <div>
-          <CardTitle>{title}</CardTitle>
-          <CardDescription>{description}</CardDescription>
+          <h2 className="text-xl font-semibold text-gray-800">{title}</h2>
+          <p className="text-sm text-gray-500 mt-1">{description}</p>
         </div>
         <div className="flex items-center gap-2">
           {activeAlerts.length > 0 && (
@@ -41,19 +34,8 @@ export function AlertsHeader({
               {activeAlerts.length} Active
             </Badge>
           )}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              refetchActive();
-              refetchHistory();
-              toast.info("Refreshing alerts...");
-            }}
-          >
-            Refresh
-          </Button>
         </div>
       </div>
-    </CardHeader>
+    </div>
   );
 }
