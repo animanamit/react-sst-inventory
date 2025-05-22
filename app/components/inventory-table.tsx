@@ -1,8 +1,16 @@
-import React, { useState, useTransition, useDeferredValue, useEffect } from "react";
+import React, {
+  useState,
+  useTransition,
+  useDeferredValue,
+  useEffect,
+} from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { api } from "~/lib/api";
-import { MagnifyingGlassIcon as SearchIcon, PlusIcon } from "@radix-ui/react-icons";
+import {
+  MagnifyingGlassIcon as SearchIcon,
+  PlusIcon,
+} from "@radix-ui/react-icons";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import {
@@ -13,12 +21,7 @@ import {
   TableHeader,
   TableRow,
 } from "~/components/ui/table";
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardContent,
-} from "~/components/ui/card";
+import { Card, CardHeader, CardTitle, CardContent } from "~/components/ui/card";
 import { InventoryTableRow } from "./inventory-table-row";
 import type { Product } from "./inventory-table-row";
 import { seedDatabase } from "~/lib/seed-utils";
@@ -45,20 +48,20 @@ export function InventoryTable({
 }: InventoryTableProps) {
   // For managing the search input
   const [searchQuery, setSearchQuery] = useState("");
-  
+
   // Use useDeferredValue for a more responsive UI during filtering
   // This creates a "delayed" version of the search query that won't block the UI
   const deferredSearchQuery = useDeferredValue(searchQuery);
-  
+
   // Status indicator for when the deferred value is different from the current input
   const [isSearchPending, setIsSearchPending] = useState(false);
-  
+
   // Track which product is being adjusted
   const [adjustingProduct, setAdjustingProduct] = useState<{
     id: string;
-    direction: 'increase' | 'decrease';
+    direction: "increase" | "decrease";
   } | null>(null);
-  
+
   // Check if the deferred value is different from the current input
   useEffect(() => {
     setIsSearchPending(deferredSearchQuery !== searchQuery);
@@ -101,27 +104,25 @@ export function InventoryTable({
       // Set loading state
       setAdjustingProduct({
         id: productId,
-        direction: changeAmount > 0 ? 'increase' : 'decrease'
+        direction: changeAmount > 0 ? "increase" : "decrease",
       });
 
       // Get the product to check minThreshold and current stock
-      const product = products.find(
-        (p) => p.productId === productId
-      );
+      const product = products.find((p) => p.productId === productId);
 
       if (product) {
         // Predict if this will trigger an alert
         const newStockLevel = product.totalStock + changeAmount;
 
         // Call the API
-        const data = await api.inventory.adjustStock({
+        const data = (await api.inventory.adjustStock({
           productId: productId,
           changeAmount: changeAmount,
           reason:
             changeAmount > 0
               ? "Stock increased via dashboard"
               : "Stock decreased via dashboard",
-        }) as AdjustStockResponse;
+        })) as AdjustStockResponse;
 
         // Invalidate queries to refetch data
         queryClient.invalidateQueries({ queryKey: ["products"] });
@@ -187,13 +188,19 @@ export function InventoryTable({
   // while the filtering happens in the background
   const getFilteredProducts = () => {
     if (!deferredSearchQuery) return products;
-    
+
     return products.filter(
       (product) =>
-        product.name.toLowerCase().includes(deferredSearchQuery.toLowerCase()) ||
-        product.description.toLowerCase().includes(deferredSearchQuery.toLowerCase()) ||
+        product.name
+          .toLowerCase()
+          .includes(deferredSearchQuery.toLowerCase()) ||
+        product.description
+          .toLowerCase()
+          .includes(deferredSearchQuery.toLowerCase()) ||
         (product.category &&
-          product.category.toLowerCase().includes(deferredSearchQuery.toLowerCase())) ||
+          product.category
+            .toLowerCase()
+            .includes(deferredSearchQuery.toLowerCase())) ||
         (product.sku &&
           product.sku.toLowerCase().includes(deferredSearchQuery.toLowerCase()))
     );
@@ -216,60 +223,17 @@ export function InventoryTable({
                 </a>
               </Button>
               <Button
-                variant="outline"
-                size="sm"
-                onClick={async () => {
-                  await seedDatabase();
-
-                  // Wait a moment to ensure DB operations are complete
-                  setTimeout(() => {
-                    // Simply refetch both data sources
-                    refetchProducts();
-                    refetchInventory();
-                  }, 1000);
-                }}
-                disabled={isLoading || adjustingProduct !== null}
-              >
-                {isLoading ? (
-                  <span className="flex items-center">
-                    <svg
-                      className="animate-spin -ml-1 mr-2 h-4 w-4"
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                    >
-                      <circle
-                        className="opacity-25"
-                        cx="12"
-                        cy="12"
-                        r="10"
-                        stroke="currentColor"
-                        strokeWidth="4"
-                      ></circle>
-                      <path
-                        className="opacity-75"
-                        fill="currentColor"
-                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                      ></path>
-                    </svg>
-                    Loading...
-                  </span>
-                ) : (
-                  "Seed Database"
-                )}
-              </Button>
-              <Button
                 variant="secondary"
                 size="sm"
                 onClick={async () => {
                   try {
-                    const data = await api.debug.getDbState() as any;
-                    
+                    const data = (await api.debug.getDbState()) as any;
+
                     // Check for alert conditions
                     let alertConditions = 0;
                     let existingAlerts = 0;
                     let missingAlerts = 0;
-                    
+
                     for (const product of data.items.products) {
                       const inventory = data.items.inventory.find(
                         (i: any) => i.productId === product.productId
@@ -299,7 +263,7 @@ export function InventoryTable({
                     toast.success("Database state printed to console", {
                       duration: 5000,
                       style: { background: "#10B981", color: "white" },
-                      description: `Found ${data.items.alerts.length} alerts (${existingAlerts} active, ${missingAlerts} missing conditions)`
+                      description: `Found ${data.items.alerts.length} alerts (${existingAlerts} active, ${missingAlerts} missing conditions)`,
                     });
                   } catch (error) {
                     console.error("Error getting database state:", error);
@@ -308,46 +272,6 @@ export function InventoryTable({
                 }}
               >
                 Debug Tables
-              </Button>
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={async () => {
-                  try {
-                    // Use the direct API endpoint to check and create all alerts
-                    const response = await api.alerts.checkAndCreateAll() as any;
-
-                    // Invalidate alerts queries
-                    queryClient.invalidateQueries({ queryKey: ["alerts"] });
-                    queryClient.invalidateQueries({
-                      queryKey: ["alerts", "active"],
-                    });
-                    queryClient.invalidateQueries({
-                      queryKey: ["alerts", "acknowledged"],
-                    });
-
-                    // Refresh the UI
-                    alertRefetchFunctions.refetchActive();
-                    alertRefetchFunctions.refetchHistory();
-
-                    if (response.alerts && response.alerts.length > 0) {
-                      toast.success(
-                        `Created ${response.alerts.length} alerts`,
-                        {
-                          description: `Alerts created for products with low stock`,
-                          duration: 5000,
-                        }
-                      );
-                    } else {
-                      toast.info("No new alerts needed", { duration: 3000 });
-                    }
-                  } catch (error) {
-                    console.error("Error creating alerts:", error);
-                    toast.error("Failed to create alerts");
-                  }
-                }}
-              >
-                Fix Alerts
               </Button>
             </div>
           </div>
@@ -360,7 +284,11 @@ export function InventoryTable({
               value={searchQuery}
               onChange={handleSearchChange}
             />
-            {isSearchPending && <span className="absolute right-2.5 top-2.5 h-4 w-4 text-gray-500">Filtering...</span>}
+            {isSearchPending && (
+              <span className="absolute right-2.5 top-2.5 h-4 w-4 text-gray-500">
+                Filtering...
+              </span>
+            )}
           </div>
         </div>
       </CardHeader>
