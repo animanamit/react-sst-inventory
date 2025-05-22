@@ -2,6 +2,7 @@ import React, { useCallback } from "react";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import { PlusIcon, MinusIcon } from "@radix-ui/react-icons";
+import { SetThresholdDialog } from "./set-threshold-dialog";
 
 // Define the types for our component props
 export interface Product {
@@ -25,6 +26,7 @@ export interface InventoryTableRowProps {
   isAdjusting: boolean;
   adjustingProductId?: string;
   adjustingDirection?: "increase" | "decrease";
+  onThresholdUpdated?: () => void;
 }
 
 /**
@@ -38,6 +40,7 @@ export const InventoryTableRow = React.memo<InventoryTableRowProps>(
     isAdjusting,
     adjustingProductId,
     adjustingDirection,
+    onThresholdUpdated = () => {}, // Default empty function if not provided
   }) => {
     // Create memoized callbacks for the increase/decrease buttons
     const handleDecrease = useCallback(() => {
@@ -172,9 +175,12 @@ export const InventoryTableRow = React.memo<InventoryTableRowProps>(
         </td>
         <td>
           <div className="flex space-x-2">
-            <Button variant="outline" size="sm">
-              Set Threshold
-            </Button>
+            <SetThresholdDialog
+              productId={product.productId}
+              productName={product.name}
+              currentThreshold={product.minThreshold}
+              onThresholdUpdated={onThresholdUpdated}
+            />
             <Button variant="outline" size="sm">
               History
             </Button>

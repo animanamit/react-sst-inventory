@@ -409,6 +409,7 @@ export function InventoryTable({
                   isAdjusting={adjustingProduct !== null}
                   adjustingProductId={adjustingProduct?.id}
                   adjustingDirection={adjustingProduct?.direction}
+                  onThresholdUpdated={refetch}
                 />
               ))
             )}
