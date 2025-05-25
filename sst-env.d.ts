@@ -5,6 +5,10 @@
 
 declare module "sst" {
   export interface Resource {
+    "AlertsFunction": {
+      "name": string
+      "type": "sst.aws.Function"
+    }
     "AlertsQueue": {
       "type": "sst.aws.Queue"
       "url": string
@@ -12,6 +16,13 @@ declare module "sst" {
     "AlertsTable": {
       "name": string
       "type": "sst.aws.Dynamo"
+    }
+    "ElastiCacheCluster": {
+      "host": string
+      "password": string
+      "port": number
+      "type": "sst.aws.Redis"
+      "username": string
     }
     "InventoryApi": {
       "type": "sst.aws.ApiGatewayV2"
