@@ -84,14 +84,14 @@ export default $config({
       },
     });
 
-    // Create VPC for Redis
-    const vpc = new sst.aws.Vpc("RedisVpc");
+    // Create VPC for Redis - COMMENTED OUT TO SAVE COSTS
+    // const vpc = new sst.aws.Vpc("RedisVpc");
     
-    // Set up ElastiCache Redis for caching
-    const cacheCluster = new sst.aws.Redis("ElastiCacheCluster", {
-      vpc,
-      engine: "redis"
-    });
+    // Set up ElastiCache Redis for caching - COMMENTED OUT TO SAVE COSTS  
+    // const cacheCluster = new sst.aws.Redis("ElastiCacheCluster", {
+    //   vpc,
+    //   engine: "redis"
+    // });
 
     // Set up the SQS alert queue (simplified for typechecking)
     const alertQueue = new sst.aws.Queue("AlertsQueue");
@@ -118,94 +118,70 @@ export default $config({
     /* ───────────── Products ───────────── */
     api.route("GET /products", {
       handler: "packages/functions/src/products/getAll.handler",
-      link: [productsTable, cacheCluster],
+      link: [productsTable],
       environment: {
         PRODUCTS_TABLE: productsTable.name,
-        REDIS_HOST: cacheCluster.host,
-        REDIS_PORT: "6379", // Hardcoded for typechecking
-        REDIS_KEY_PREFIX: "inventory:",
-        REDIS_ENABLED: "true",
-        REDIS_TTL: "3600", // Cache for 1 hour
+        REDIS_ENABLED: "false",
       },
     });
 
     api.route("GET /products/{id}", {
       handler: "packages/functions/src/products/getById.handler",
-      link: [productsTable, cacheCluster],
+      link: [productsTable],
       environment: {
         PRODUCTS_TABLE: productsTable.name,
-        REDIS_HOST: cacheCluster.host,
-        REDIS_PORT: "6379", // Hardcoded for typechecking
-        REDIS_KEY_PREFIX: "inventory:",
-        REDIS_ENABLED: "true",
-        REDIS_TTL: "3600", // Cache for 1 hour
+        REDIS_ENABLED: "false",
       },
     });
 
     api.route("POST /products", {
       handler: "packages/functions/src/products/create.handler",
-      link: [productsTable, bucket, cacheCluster],
+      link: [productsTable, bucket],
       environment: {
         PRODUCTS_TABLE: productsTable.name,
         BUCKET_NAME: bucket.name,
-        REDIS_HOST: cacheCluster.host,
-        REDIS_PORT: "6379", // Hardcoded for typechecking
-        REDIS_KEY_PREFIX: "inventory:",
-        REDIS_ENABLED: "true",
+        REDIS_ENABLED: "false",
       },
     });
 
     api.route("PUT /products/{id}", {
       handler: "packages/functions/src/products/update.handler",
-      link: [productsTable, bucket, cacheCluster],
+      link: [productsTable, bucket],
       environment: {
         PRODUCTS_TABLE: productsTable.name,
         BUCKET_NAME: bucket.name,
-        REDIS_HOST: cacheCluster.host,
-        REDIS_PORT: "6379", // Hardcoded for typechecking
-        REDIS_KEY_PREFIX: "inventory:",
-        REDIS_ENABLED: "true",
+        REDIS_ENABLED: "false",
       },
     });
 
     api.route("DELETE /products/{id}", {
       handler: "packages/functions/src/products/delete.handler",
-      link: [productsTable, bucket, cacheCluster],
+      link: [productsTable, bucket],
       environment: {
         PRODUCTS_TABLE: productsTable.name,
         BUCKET_NAME: bucket.name,
-        REDIS_HOST: cacheCluster.host,
-        REDIS_PORT: "6379", // Hardcoded for typechecking
-        REDIS_KEY_PREFIX: "inventory:",
-        REDIS_ENABLED: "true",
+        REDIS_ENABLED: "false",
       },
     });
 
     api.route("POST /products/seed", {
       handler: "packages/functions/src/products/seedMockData.handler",
-      link: [productsTable, inventoryTable, cacheCluster],
+      link: [productsTable, inventoryTable],
       environment: {
         PRODUCTS_TABLE: productsTable.name,
         INVENTORY_TABLE: inventoryTable.name,
-        REDIS_HOST: cacheCluster.host,
-        REDIS_PORT: "6379", // Hardcoded for typechecking
-        REDIS_KEY_PREFIX: "inventory:",
-        REDIS_ENABLED: "true",
+        REDIS_ENABLED: "false",
       },
     });
 
     /* ───────────── Inventory ───────────── */
     api.route("GET /inventory", {
       handler: "packages/functions/src/inventory/getAll.handler",
-      link: [inventoryTable, productsTable, cacheCluster],
+      link: [inventoryTable, productsTable],
       environment: {
         INVENTORY_TABLE: inventoryTable.name,
         PRODUCTS_TABLE: productsTable.name,
-        REDIS_HOST: cacheCluster.host,
-        REDIS_PORT: "6379", // Hardcoded for typechecking
-        REDIS_KEY_PREFIX: "inventory:",
-        REDIS_ENABLED: "true",
-        REDIS_TTL: "1800", // Cache for 30 minutes
+        REDIS_ENABLED: "false",
       },
     });
 
@@ -225,7 +201,6 @@ export default $config({
         alertsTable,
         productsTable,
         alertQueue,
-        cacheCluster,
       ],
       environment: {
         INVENTORY_TABLE: inventoryTable.name,
@@ -233,10 +208,7 @@ export default $config({
         INVENTORY_HISTORY_TABLE: inventoryHistoryTable.name,
         ALERTS_TABLE: alertsTable.name,
         ALERTS_QUEUE: alertQueue.url,
-        REDIS_HOST: cacheCluster.host,
-        REDIS_PORT: "6379", // Hardcoded for typechecking
-        REDIS_KEY_PREFIX: "inventory:",
-        REDIS_ENABLED: "true",
+        REDIS_ENABLED: "false",
       },
     });
 
@@ -260,18 +232,18 @@ export default $config({
       },
     });
 
-    // Redis test endpoint
-    api.route("GET /test/redis", {
-      handler: "packages/functions/src/utils/test-redis.handler",
-      link: [cacheCluster],
-      environment: {
-        REDIS_HOST: cacheCluster.host,
-        REDIS_PORT: "6379", // Hardcoded for typechecking
-        REDIS_KEY_PREFIX: "test:",
-        REDIS_ENABLED: "true",
-        REDIS_TTL: "60", // Short TTL for tests
-      },
-    });
+    // Redis test endpoint - DISABLED TO SAVE COSTS
+    // api.route("GET /test/redis", {
+    //   handler: "packages/functions/src/utils/test-redis.handler",
+    //   link: [cacheCluster],
+    //   environment: {
+    //     REDIS_HOST: cacheCluster.host,
+    //     REDIS_PORT: "6379", // Hardcoded for typechecking
+    //     REDIS_KEY_PREFIX: "test:",
+    //     REDIS_ENABLED: "true",
+    //     REDIS_TTL: "60", // Short TTL for tests
+    //   },
+    // });
 
     /* ───────────── Alerts ───────────── */
     api.route("GET /alerts", {
