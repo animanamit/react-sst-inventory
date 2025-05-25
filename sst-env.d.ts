@@ -37,6 +37,9 @@ declare module "sst" {
       "name": string
       "type": "sst.aws.Dynamo"
     }
+    "RedisVpc": {
+      "type": "sst.aws.Vpc"
+    }
   }
 }
 /// <reference path="sst-env.d.ts" />

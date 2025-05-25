@@ -1,6 +1,4 @@
-import { Resource } from "sst";
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { useState, useEffect } from "react";
 import type { Route } from "./+types/images";
 
 export function meta({}: Route.MetaArgs) {
@@ -10,19 +8,26 @@ export function meta({}: Route.MetaArgs) {
   ];
 }
 
-export async function loader() {
-  // Generate a presigned URL for S3 file upload
-  const command = new PutObjectCommand({
-    Key: crypto.randomUUID(),
-    Bucket: Resource.ProductImagesBucket.name,
-  });
-  const url = await getSignedUrl(new S3Client({}), command);
+const ImagesPage = () => {
+  const [url, setUrl] = useState<string>("");
 
-  return { url };
-}
-
-const ImagesPage = ({ loaderData }: Route.ComponentProps) => {
-  const { url } = loaderData;
+  useEffect(() => {
+    const generateUrl = async () => {
+      try {
+        // Get presigned URL from our API instead
+        const apiUrl = import.meta.env.VITE_API_URL || '';
+        const response = await fetch(`${apiUrl}/uploads/presigned-url`);
+        if (!response.ok) {
+          throw new Error('Failed to get presigned URL');
+        }
+        const data = await response.json();
+        setUrl(data.url);
+      } catch (error) {
+        console.error('Error getting presigned URL:', error);
+      }
+    };
+    generateUrl();
+  }, []);
   return (
     <div className="flex h-screen items-center justify-center">
       <div className="flex flex-col items-center gap-8">
@@ -58,19 +63,29 @@ const ImagesPage = ({ loaderData }: Route.ComponentProps) => {
             const fileInput = form.file as HTMLInputElement;
             const file = fileInput.files?.[0];
 
-            if (!file) return;
+            if (!file || !url) return;
 
-            const image = await fetch(url, {
-              body: file,
-              method: "PUT",
-              headers: {
-                "Content-Type": file.type,
-                "Content-Disposition": `attachment; filename="${file.name}"`,
-              },
-            });
+            try {
+              const response = await fetch(url, {
+                body: file,
+                method: "PUT",
+                headers: {
+                  "Content-Type": file.type,
+                  "Content-Disposition": `attachment; filename="${file.name}"`,
+                },
+              });
 
-            // Redirect to the uploaded image
-            window.location.href = image.url.split("?")[0];
+              if (response.ok) {
+                // Redirect to the uploaded image
+                const imageUrl = url.split("?")[0];
+                window.location.href = imageUrl;
+              } else {
+                alert("Upload failed");
+              }
+            } catch (error) {
+              console.error("Upload error:", error);
+              alert("Upload failed");
+            }
           }}
         >
           <input
